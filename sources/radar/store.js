@@ -49,6 +49,16 @@ export async function listSubs() {
   return subs.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 }
 
+/** One subscription by id, or null. */
+export async function readSub(id) {
+  try {
+    return JSON.parse(await readFile(subFile(id), 'utf8'))
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null
+    throw new Error(`雷达 could not read subscription ${id}: ${error.message}`)
+  }
+}
+
 export async function writeSub(sub) {
   await mkdir(path.join(dir(), SUBS), { recursive: true })
   const file = subFile(sub.id)

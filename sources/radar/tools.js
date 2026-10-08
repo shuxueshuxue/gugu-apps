@@ -4,7 +4,8 @@
 // 雷达's own tab (callProgram). Each subscription is its own file (subs/<id>.json); the background page reads them and
 // does the watching. Which agents are on this computer comes from agents.json, which the background page rewrites
 // whenever an agent moves: a target that is not in it is not here.
-import { watchArgs, readJson, resolveAgent, listSubs, writeSub, removeSub, EVENTS, DEFAULT_EVENTS } from './store.js'
+import { createHash } from 'node:crypto'
+import { watchArgs, readJson, resolveAgent, listSubs, readSub, writeSub, removeSub, EVENTS, DEFAULT_EVENTS } from './store.js'
 
 export const watch = {
   description:
@@ -44,15 +45,16 @@ export const watch = {
     const titleOf = (agentId) => snapshot.agents.find((a) => a.agentId === agentId)?.title ?? null
     const told = receiver.agentId === agent ? 'you' : receiver.agentId
 
-    // The same (who, whom, for whom) is one subscription: asking again widens it, never multiplies the messages.
-    const same = (await listSubs()).find((s) => s.by === agent && s.target === watched.agentId && s.to === receiver.agentId)
+    // The same (who, whom, for whom) is one subscription — its id is that triple's hash, so asking again (even two
+    // asks in flight together) lands on the same file: it widens it, never multiplies the messages.
+    const id = `w${createHash('sha256').update(`${agent}|${watched.agentId}|${receiver.agentId}`).digest('hex').slice(0, 16)}`
+    const same = await readSub(id)
     if (same) {
       same.events = [...new Set([...same.events, ...events])]
       if (events.includes('stuck')) same.stuckMinutes = stuckMinutes
       await writeSub(same)
-      return { id: same.id, merged: true, watching: `${watched.title} (session:${watched.sessionId})`, events: same.events, told }
+      return { id, merged: true, watching: `${watched.title} (session:${watched.sessionId})`, events: same.events, told }
     }
-    const id = `w${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
     // Titles as they were at watch time: an archived session is gone from the list, and its subscription still has a name.
     await writeSub({
       id, by: agent, target: watched.agentId, to: receiver.agentId, events, stuckMinutes, createdAt: new Date().toISOString(),

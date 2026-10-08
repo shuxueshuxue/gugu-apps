@@ -42,11 +42,13 @@ async function readSubs() {
 
 /** A subscription whose target is gone ends: its file is removed (by 雷达's own program), its last word kept in a short list. */
 async function endSub(sub, why) {
-  state.ended = [...state.ended, { at: nowIso(), id: sub.id, target: sub.titles?.target ?? sub.target, why }].slice(-ENDED_MAX)
+  // Once per subscription: a removal that keeps failing is retried every look, but said and kept in the list only once.
+  const first = !state.ended.some((e) => e.id === sub.id)
+  if (first) state.ended = [...state.ended, { at: nowIso(), id: sub.id, target: sub.titles?.target ?? sub.target, why }].slice(-ENDED_MAX)
   try {
     await g.callProgram('unwatch', { id: sub.id })
   } catch (error) {
-    g.reportError(`雷达没能删掉结束了的订阅 ${sub.id}:${error?.message ?? error}`)
+    if (first) g.reportError(`雷达没能删掉结束了的订阅 ${sub.id}:${error?.message ?? error}`)
   }
 }
 
