@@ -164,7 +164,12 @@ function logList(entries) {
 
 function renderSide() {
   const detail = $('detail')
-  const log = [...(state?.log ?? [])].reverse()
+  let log = [...(state?.log ?? [])].reverse()
+  // in a task: only what concerns the agents on this graph
+  if (centerId()) {
+    const on = new Set(model().nodes.map((n) => n.id))
+    log = log.filter((e) => on.has(e.target) || on.has(e.to))
+  }
   let shownLog = log
   detail.hidden = !selected
   if (selected?.kind === 'node') {
