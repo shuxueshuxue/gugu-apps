@@ -43,3 +43,5 @@ body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow
 @keyframes radar-pulse { 0% { stroke-width: 6; opacity: 1; } 100% { stroke-width: 1.5; opacity: 1; } }
 .edge.selected .edge-line { stroke-width: 3; }
 .failed { color: var(--em-foreground-destructive); }
+#depth-box { display: flex; align-items: center; gap: 4px; }
+#depth-box select { width: auto; }

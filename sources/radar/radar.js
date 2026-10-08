@@ -83,9 +83,14 @@ function model() {
   let ids
   if (center) {
     // local graph: everything within `depth` hops of this task's agent, edges taken both ways
+    // one hop = every agent a subscription ties it to: who it watches, who watches it, who its messages go to, whose
+    // messages come to it (that last pair has no edge of its own when the watched agent is out of range, so it is
+    // taken from the subscriptions, not from the drawn edges)
     const near = new Map()
-    const link = (a, b) => { if (!near.has(a)) near.set(a, new Set()); near.get(a).add(b) }
-    for (const e of edges) { link(e.source, e.target); link(e.target, e.source) }
+    const link = (a, b) => {
+      for (const [x, y] of [[a, b], [b, a]]) { if (!near.has(x)) near.set(x, new Set()); near.get(x).add(y) }
+    }
+    for (const sub of Object.values(subs)) { link(sub.by, sub.target); link(sub.target, sub.to); link(sub.by, sub.to) }
     ids = new Set([center])
     let frontier = [center]
     for (let d = 0; d < depth; d++) {
@@ -94,6 +99,8 @@ function model() {
       frontier = next
     }
     edges = edges.filter((e) => ids.has(e.source) && ids.has(e.target))
+    ids.delete(center)
+    ids = new Set([center, ...ids])
   } else {
     ids = new Set(edges.flatMap((e) => [e.source, e.target]))
   }
@@ -256,5 +263,6 @@ g.onContextChanged((next) => { ctx = { ...ctx, ...next }; render() })
   mode = ctx?.session?.agentId ? 'local' : 'all'
   await refresh()
   setTimeout(() => graph.fit(), 800)
+  new ResizeObserver(() => graph.fit()).observe($('graph'))
   setInterval(renderBar, 30_000)
 })()
