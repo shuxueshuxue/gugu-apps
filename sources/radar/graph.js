@@ -221,7 +221,7 @@
       if (!ps.length) return
       const { w, h } = size()
       const xs = ps.map((p) => p.x), ys = ps.map((p) => p.y)
-      const bw = Math.max(...xs) - Math.min(...xs) + 200, bh = Math.max(...ys) - Math.min(...ys) + 120
+      const bw = Math.max(...xs) - Math.min(...xs) + 140, bh = Math.max(...ys) - Math.min(...ys) + 120
       const k = Math.min(1.2, Math.max(0.3, Math.min(w / bw, h / bh)))
       zoom = { k, x: w / 2 - ((Math.max(...xs) + Math.min(...xs)) / 2) * k, y: h / 2 - ((Math.max(...ys) + Math.min(...ys)) / 2) * k }
       applyView()
