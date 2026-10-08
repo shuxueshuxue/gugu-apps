@@ -1,0 +1,28 @@
+{
+  "id": "market-index-probe",
+  "name": "市场探针(索引仓测试)",
+  "description": "App 市场(GitHub 索引仓)车道的测试 App:测从下载站装、有新版、升级、撤回、同意框里的「代码在哪」。测完就从市场下架。",
+  "author": "咕咕测试",
+  "version": "0.1.0",
+  "apiVersion": 3,
+  "engines": {
+    "gugu": ">=0.2.40"
+  },
+  "entry": "probe.html",
+  "icon": "icon.png",
+  "permissions": {
+    "capabilities": [
+      "files:read"
+    ],
+    "network": []
+  },
+  "contributes": {
+    "tabs": [
+      {
+        "name": "probe",
+        "title": "市场探针"
+      }
+    ]
+  },
+  "license": "MIT"
+}
