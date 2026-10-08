@@ -47,8 +47,12 @@
 
 `npm test` 跑本地格:打包可重复、sha 错一位就红、改旧版本就红、只写 `market/`、不覆盖、重跑零写入。
 
-## 公开之前
+## 公开与权限
 
-「只写 `market/`、不覆盖」现在只靠 `scripts/sync.mjs` 守(下载站的钥匙能写整个发布桶),而私有免费仓开不了分支保护,
-能推 `main` 的人就能改它。所以**公开的同时打开 `main` 的分支保护(只有 owner 能批)**;以后有协作者能推 `main`,
-就换成只给 `market/*` Put、不给 Delete 的 RAM 子账号钥匙。
+本仓 2026-10-08 起公开。owner 定的：先不开 `main` 的分支保护，眼下能推 `main` 的只有 owner 一个人。
+
+「只写 `market/`、不覆盖」目前只靠 `scripts/sync.mjs` 守（下载站那把钥匙能写整个发布桶）。加协作者、让别人也能推 `main` 之前，先做两件事：
+1. 打开 `main` 的分支保护，合并只能由 owner 批；
+2. 把钥匙换成只能对 `market/*` Put、不能 Delete 的 RAM 子账号钥匙。
+
+fork 来的 PR 只跑 `verify`，拿不到 secrets；只有 `main` 能用 `mirror` 环境。
