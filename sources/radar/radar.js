@@ -179,10 +179,18 @@ function renderSide() {
       h('h5', {}, titleOf(selected.id)),
       h('p', {}, statusText(row)),
       row?.lastActionAt ? h('p', {}, '最后一次动作 ', h('gugu-time', { datetime: row.lastActionAt })) : null,
-      // 打开那条会话:咕咕还没给 App 这个口子(页面里点链接会被拦),先如实说。
-      h('button', { disabled: true, title: '需要咕咕补一个口子:App 里点链接打开会话' }, '打开会话(需要咕咕补一个口子)'),
+      // 打开那条会话:一条咕咕自己的链接(linkTo),人点它,咕咕按链接打开那条会话、并在那里打开雷达。
+      // 链接先备好,点击就是人的手势本身。这要咕咕认得 App 页面里点的链接(gugu PR「App 页面里点咕咕自己的链接」);
+      // 更早的咕咕会拦下它,页签上报一条错。
+      row?.sessionId ? h('a', { id: 'open-session', class: 'button', role: 'button', href: '#' }, '打开会话') : null,
       related.length ? h('ul', { class: 'list' }, related.map(subLine)) : h('p', { class: 'muted' }, '没有和它有关的订阅'),
     ].filter(Boolean))
+    if (row?.sessionId) {
+      g.linkTo({ tab: 'radar', session: row.sessionId }).then(
+        (link) => { const a = $('open-session'); if (a) a.href = link },
+        (error) => g.reportError(`做不出这条会话的链接:${error?.message ?? error}`),
+      )
+    }
     shownLog = log.filter((e) => e.target === selected.id || e.to === selected.id || subs[e.sub]?.by === selected.id)
   } else if (selected?.kind === 'edge') {
     const edge = allEdges().find((e) => e.id === selected.id)

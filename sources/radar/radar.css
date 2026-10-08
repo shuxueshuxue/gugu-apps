@@ -45,3 +45,4 @@ body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow
 .failed { color: var(--em-foreground-destructive); }
 #depth-box { display: flex; align-items: center; gap: 4px; }
 #depth-box select { width: auto; }
+a.button { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
