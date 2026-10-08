@@ -1,0 +1,16 @@
+{
+  "id": "market-index-probe",
+  "unlisted": false,
+  "deprecated": null,
+  "versions": [
+    {
+      "version": "0.1.0",
+      "repo": "shuxueshuxue/gugu-apps",
+      "path": "examples/market-index-probe",
+      "commit": "0599f6664980ef256ce34e0bcc502329583d49af",
+      "sha256": "51ca0b7d40238191497ce4203ca0e24d0e2cbf5d2ed6fab2a27e59dbdb44b0ad",
+      "bytes": 2003,
+      "yanked": null
+    }
+  ]
+}
