@@ -52,7 +52,7 @@ export async function listSubs() {
 export async function writeSub(sub) {
   await mkdir(path.join(dir(), SUBS), { recursive: true })
   const file = subFile(sub.id)
-  const tmp = `${file}.${process.pid}.tmp`
+  const tmp = `${file}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`
   await writeFile(tmp, JSON.stringify(sub, null, 1))
   await rename(tmp, file)
 }
