@@ -1,6 +1,6 @@
 /**
  * 雷达 —— 页签:谁在盯谁、最近投了什么、投没投到、后台最后一次检查是什么时候。
- * 状态全在后台页的账里(state.json)与订阅表(subs.json);这里只画,外加「撤掉」一条订阅。
+ * 状态全在后台页的账里(state.json)与订阅文件(subs/<id>.json,一条一个);这里只画,外加「撤掉」一条订阅(经雷达自己的程序删那个文件)。
  */
 const g = window.gugu
 const $ = (id) => document.getElementById(id)
@@ -32,18 +32,25 @@ const statusOf = (agentId) => {
 }
 
 async function load() {
-  const [rawState, rawSubs, rawAgents] = await Promise.all([g.readData('state.json'), g.readData('subs.json'), g.readData('agents.json')])
+  const [rawState, files, rawAgents] = await Promise.all([g.readData('state.json'), g.listData('subs'), g.readData('agents.json')])
   if (rawState !== null) state = JSON.parse(rawState)
-  subs = rawSubs === null ? {} : JSON.parse(rawSubs).subs ?? {}
+  const next = {}
+  for (const { path, kind } of files) {
+    if (kind !== 'file' || !path.endsWith('.json')) continue
+    const raw = await g.readData(path)
+    if (raw === null) continue
+    const sub = JSON.parse(raw)
+    next[sub.id] = sub
+  }
+  subs = next
   agents = rawAgents === null ? [] : JSON.parse(rawAgents).agents ?? []
 }
 
 async function unwatch(id) {
   try {
-    const raw = await g.readData('subs.json')
-    const file = raw === null ? { version: 1, subs: {} } : JSON.parse(raw)
-    delete file.subs[id]
-    await g.writeData('subs.json', JSON.stringify(file, null, 1))
+    // The person stops it: no agent stamp on this call, so 雷达's program lets them stop any subscription.
+    const result = await g.callProgram('unwatch', { id })
+    if (result?.isError) throw new Error(result.content?.[0]?.text ?? 'unwatch failed')
     await load()
     render()
   } catch (error) {
@@ -69,13 +76,19 @@ function render() {
     rows.length === 0
       ? h('gugu-empty', { icon: 'radar' }, h('strong', {}, '还没有订阅'), h('small', {}, 'agent 用 radar 的 watch 工具订阅别的 agent'))
       : h('ul', { class: 'list' }, rows.map((s) => {
-          const ended = state?.ended?.[s.id]
           return h('li', {},
             h('div', {},
               h('strong', {}, `${titleOf(s.by, s.titles?.by)} 盯着 ${titleOf(s.target, s.titles?.target)}`),
-              h('span', {}, `${s.events.map((e) => EVENT_NAMES[e] ?? e).join('、')}${s.to !== s.by ? ` · 投给 ${titleOf(s.to, s.titles?.to)}` : ''} · 现在 ${statusOf(s.target)}${ended ? ` · 已结束:${ended.why}` : ''}`)),
+              h('span', {}, `${s.events.map((e) => EVENT_NAMES[e] ?? e).join('、')}${s.to !== s.by ? ` · 投给 ${titleOf(s.to, s.titles?.to)}` : ''} · 现在 ${statusOf(s.target)}`)),
             h('button', { onclick: () => void unwatch(s.id) }, '撤掉'))
         })),
+  )
+
+  const ended = [...(state?.ended ?? [])].reverse().slice(0, 10)
+  $('ended').hidden = ended.length === 0
+  $('ended').replaceChildren(
+    h('h5', {}, '已结束的订阅'),
+    h('ul', { class: 'list' }, ended.map((e) => h('li', {}, h('div', {}, h('strong', {}, `盯着 ${e.target}`), h('span', {}, e.why)), h('gugu-time', { datetime: e.at })))),
   )
 
   const log = [...(state?.log ?? [])].reverse().slice(0, 50)

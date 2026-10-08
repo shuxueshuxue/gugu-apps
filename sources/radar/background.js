@@ -10,9 +10,10 @@
 
 const TICK_MS = 30_000
 const LOG_MAX = 200
+const ENDED_MAX = 50
 const g = window.gugu
 
-let state = { version: 1, checkedAt: null, last: {}, fired: {}, ended: {}, log: [], error: null }
+let state = { version: 2, checkedAt: null, last: {}, fired: {}, ended: [], log: [], error: null }
 let agentsJson = ''
 let firstLook = true
 
@@ -22,14 +23,31 @@ async function load() {
   const raw = await g.readData('state.json')
   if (raw === null) return
   const saved = JSON.parse(raw)
-  if (saved.version !== 1) throw new Error(`state.json is version ${saved.version}; this build reads 1`)
+  if (saved.version !== 2) throw new Error(`state.json is version ${saved.version}; this build reads 2`)
   state = { ...state, ...saved }
 }
 
+/** Every subscription: one file each under subs/ (tools.js writes them; a person's 「撤掉」 removes one). */
 async function readSubs() {
-  const raw = await g.readData('subs.json')
-  if (raw === null) return {}
-  return JSON.parse(raw).subs ?? {}
+  const files = (await g.listData('subs')).filter((e) => e.kind === 'file' && e.path.endsWith('.json'))
+  const subs = {}
+  for (const { path } of files) {
+    const raw = await g.readData(path)
+    if (raw === null) continue // removed between the listing and the read
+    const sub = JSON.parse(raw)
+    subs[sub.id] = sub
+  }
+  return subs
+}
+
+/** A subscription whose target is gone ends: its file is removed (by 雷达's own program), its last word kept in a short list. */
+async function endSub(sub, why) {
+  state.ended = [...state.ended, { at: nowIso(), id: sub.id, target: sub.titles?.target ?? sub.target, why }].slice(-ENDED_MAX)
+  try {
+    await g.callProgram('unwatch', { id: sub.id })
+  } catch (error) {
+    g.reportError(`雷达没能删掉结束了的订阅 ${sub.id}:${error?.message ?? error}`)
+  }
 }
 
 const WAITS = { approval: '批准一个操作', question: '回答一个问题', plan: '看一份计划', dialog: '处理一个对话框' }
@@ -109,14 +127,13 @@ async function check() {
   }
 
   for (const sub of Object.values(subs)) {
-    if (state.ended[sub.id]) continue
     const row = byId.get(sub.target)
     const before = state.last[sub.target]
     if (!row) {
       // 不在清单里了:会话被归档或删除。这条订阅到此为止。
       const title = before?.title ?? sub.titles?.target ?? sub.target
       if (sub.events.includes('gone')) await fire(sub, 'gone', { title, agentId: sub.target, sessionId: null })
-      state.ended[sub.id] = { at: nowIso(), why: '被盯的会话不在了' }
+      await endSub(sub, '被盯的会话不在了')
       continue
     }
     if (!firstLook && before && before.status !== row.status) {
@@ -134,15 +151,16 @@ async function check() {
       }
     }
     if (row.status === 'working' && sub.events.includes('stuck')) {
-      const since = Math.max(Date.parse(row.lastActionAt ?? '') || 0, Date.parse(row.updatedAt ?? '') || 0)
+      // 只认「最后一次调工具」。拿不到(终端 agent、没打开的面板 agent:问不到,不是零)就不判卡住 ——
+      // ❌ 拿 updatedAt 顶:那是排序键,一条一直在调工具的终端车道跑过阈值也会被报卡住。
+      const since = Date.parse(row.lastActionAt ?? '')
       const minutes = Math.floor((now - since) / 60_000)
-      if (since > 0 && minutes >= sub.stuckMinutes) await fire(sub, 'stuck', row, minutes)
+      if (Number.isFinite(since) && minutes >= sub.stuckMinutes) await fire(sub, 'stuck', row, minutes)
     }
   }
 
   state.last = Object.fromEntries(list.map((row) => [row.agentId, { status: row.status, detail: row.detail ?? null, title: row.title }]))
   for (const id of Object.keys(state.fired)) if (!subs[id]) delete state.fired[id]
-  for (const id of Object.keys(state.ended)) if (!subs[id]) delete state.ended[id]
   firstLook = false
   state.checkedAt = nowIso()
   state.error = null

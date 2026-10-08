@@ -1,5 +1,5 @@
 // Helpers for tools.js (Node): the data folder, argument checks, and naming an agent the way agents write it.
-import { readFile, writeFile, rename } from 'node:fs/promises'
+import { readFile, writeFile, rename, readdir, mkdir, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
 export const EVENTS = ['failed', 'gone', 'stuck', 'waiting', 'done']
@@ -20,12 +20,52 @@ export async function readJson(name, fallback) {
   }
 }
 
-/** Atomic: written beside, then renamed over — the background page never reads half a file. */
-export async function writeJson(name, value) {
-  const file = path.join(dir(), name)
+/**
+ * One subscription, one file (subs/<id>.json): two writers (an agent's watch, a person's 「撤掉」) never rewrite each
+ * other's subscriptions, the way a shared subs.json read-modify-write would.
+ */
+const SUBS = 'subs'
+const subFile = (id) => {
+  if (!/^w[a-z0-9]+$/.test(id)) throw new Error(`${id} is not a subscription id`)
+  return path.join(dir(), SUBS, `${id}.json`)
+}
+
+export async function listSubs() {
+  let names
+  try {
+    names = await readdir(path.join(dir(), SUBS))
+  } catch (error) {
+    if (error?.code === 'ENOENT') return []
+    throw error
+  }
+  const subs = []
+  for (const name of names.filter((n) => n.endsWith('.json'))) {
+    try {
+      subs.push(JSON.parse(await readFile(path.join(dir(), SUBS, name), 'utf8')))
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw new Error(`雷达 could not read subscription ${name}: ${error.message}`)
+    }
+  }
+  return subs.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+}
+
+export async function writeSub(sub) {
+  await mkdir(path.join(dir(), SUBS), { recursive: true })
+  const file = subFile(sub.id)
   const tmp = `${file}.${process.pid}.tmp`
-  await writeFile(tmp, JSON.stringify(value, null, 1))
+  await writeFile(tmp, JSON.stringify(sub, null, 1))
   await rename(tmp, file)
+}
+
+/** false when it was already gone. */
+export async function removeSub(id) {
+  try {
+    await unlink(subFile(id))
+    return true
+  } catch (error) {
+    if (error?.code === 'ENOENT') return false
+    throw error
+  }
 }
 
 /** session:<id> | aid:<id> | user:<uuid> → its row in agents.json, or null. */
