@@ -1,6 +1,6 @@
 {
   "id": "market-index-card",
-  "unlisted": false,
+  "unlisted": true,
   "deprecated": null,
   "versions": [
     {
