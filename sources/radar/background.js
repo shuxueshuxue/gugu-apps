@@ -114,7 +114,7 @@ async function check() {
     const before = state.last[sub.target]
     if (!row) {
       // 不在清单里了:会话被归档或删除。这条订阅到此为止。
-      const title = before?.title ?? sub.target
+      const title = before?.title ?? sub.titles?.target ?? sub.target
       if (sub.events.includes('gone')) await fire(sub, 'gone', { title, agentId: sub.target, sessionId: null })
       state.ended[sub.id] = { at: nowIso(), why: '被盯的会话不在了' }
       continue

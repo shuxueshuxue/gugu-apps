@@ -39,7 +39,12 @@ export const watch = {
     if (watched.agentId === receiver.agentId) throw new Error('an agent cannot watch itself: when it fails it cannot be told')
     const subs = await readJson('subs.json', { version: 1, subs: {} })
     const id = `w${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
-    subs.subs[id] = { id, by: agent, target: watched.agentId, to: receiver.agentId, events, stuckMinutes, createdAt: new Date().toISOString() }
+    // Titles as they were at watch time: an archived session is gone from the list, and its subscription still has a name.
+    const titleOf = (agentId) => snapshot.agents.find((a) => a.agentId === agentId)?.title ?? null
+    subs.subs[id] = {
+      id, by: agent, target: watched.agentId, to: receiver.agentId, events, stuckMinutes, createdAt: new Date().toISOString(),
+      titles: { by: titleOf(agent), target: watched.title, to: titleOf(receiver.agentId) },
+    }
     await writeJson('subs.json', subs)
     return { id, watching: `${watched.title} (session:${watched.sessionId})`, events, ...(events.includes('stuck') ? { stuck_minutes: stuckMinutes } : {}), told: receiver.agentId === agent ? 'you' : receiver.agentId }
   },
@@ -66,17 +71,17 @@ export const watching = {
     const subs = await readJson('subs.json', { version: 1, subs: {} })
     const state = await readJson('state.json', { ended: {}, log: [] })
     const snapshot = await readJson('agents.json', { agents: [] })
-    const name = (id) => {
+    const name = (id, saved) => {
       const a = snapshot.agents.find((row) => row.agentId === id)
-      return a ? `${a.title} (session:${a.sessionId})` : id
+      return a ? `${a.title} (session:${a.sessionId})` : `${saved ?? id} (no longer on this computer)`
     }
-    const row = (s) => ({ id: s.id, target: name(s.target), to: s.to === agent ? 'you' : name(s.to), events: s.events, ended: state.ended?.[s.id] ?? null })
+    const row = (s) => ({ id: s.id, target: name(s.target, s.titles?.target), to: s.to === agent ? 'you' : name(s.to, s.titles?.to), events: s.events, ended: state.ended?.[s.id] ?? null })
     const all = Object.values(subs.subs)
     const mine = all.filter((s) => s.by === agent)
     const ids = new Set(mine.map((s) => s.id))
     return {
       mine: mine.map(row),
-      watching_me: all.filter((s) => s.target === agent).map((s) => ({ id: s.id, by: name(s.by), events: s.events })),
+      watching_me: all.filter((s) => s.target === agent).map((s) => ({ id: s.id, by: name(s.by, s.titles?.by), events: s.events })),
       recent: (state.log ?? []).filter((e) => ids.has(e.sub)).slice(-10),
       background_checked_at: state.checkedAt ?? null,
     }

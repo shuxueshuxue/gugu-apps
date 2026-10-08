@@ -23,7 +23,8 @@ function h(tag, attrs = {}, ...children) {
   return el
 }
 
-const titleOf = (agentId) => agents.find((a) => a.agentId === agentId)?.title ?? agentId
+/** Its title now, else the one saved when it was watched (an archived session is no longer listed). */
+const titleOf = (agentId, saved) => agents.find((a) => a.agentId === agentId)?.title ?? saved ?? agentId
 const statusOf = (agentId) => {
   const a = agents.find((row) => row.agentId === agentId)
   if (!a) return '不在这台电脑上'
@@ -71,8 +72,8 @@ function render() {
           const ended = state?.ended?.[s.id]
           return h('li', {},
             h('div', {},
-              h('strong', {}, `${titleOf(s.by)} 盯着 ${titleOf(s.target)}`),
-              h('span', {}, `${s.events.map((e) => EVENT_NAMES[e] ?? e).join('、')}${s.to !== s.by ? ` · 投给 ${titleOf(s.to)}` : ''} · 现在 ${statusOf(s.target)}${ended ? ` · 已结束:${ended.why}` : ''}`)),
+              h('strong', {}, `${titleOf(s.by, s.titles?.by)} 盯着 ${titleOf(s.target, s.titles?.target)}`),
+              h('span', {}, `${s.events.map((e) => EVENT_NAMES[e] ?? e).join('、')}${s.to !== s.by ? ` · 投给 ${titleOf(s.to, s.titles?.to)}` : ''} · 现在 ${statusOf(s.target)}${ended ? ` · 已结束:${ended.why}` : ''}`)),
             h('button', { onclick: () => void unwatch(s.id) }, '撤掉'))
         })),
   )
@@ -84,7 +85,7 @@ function render() {
       : h('ul', { class: 'list' }, log.map((e) =>
           h('li', {},
             h('div', {},
-              h('strong', {}, `${e.targetTitle} ${EVENT_NAMES[e.event] ?? e.event} → ${titleOf(e.to)}`),
+              h('strong', {}, `${e.targetTitle} ${EVENT_NAMES[e.event] ?? e.event} → ${titleOf(e.to, subs[e.sub]?.titles?.to)}`),
               e.ok ? h('span', {}, '投到了') : h('span', { class: 'failed' }, `没投到:${e.error}`)),
             h('gugu-time', { datetime: e.at })))),
   )
