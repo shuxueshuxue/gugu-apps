@@ -1,0 +1,21 @@
+{
+  "id": "radar",
+  "name": "雷达",
+  "description": "让 agent 订阅别的 agent:它失败、引擎没了、卡住、在等人、跑完的时候,雷达投一条消息过去。agent 自己用 watch / unwatch / watching 三个工具订阅;页签上看得到谁在盯谁、最近投了什么、投没投到。只看这台电脑上的 agent。",
+  "author": "咕咕",
+  "version": "0.1.0",
+  "apiVersion": 3,
+  "engines": { "gugu": ">=0.2.53" },
+  "entry": "radar.html",
+  "icon": "icon.png",
+  "background": { "entry": "background.html" },
+  "permissions": {
+    "capabilities": ["agents:read:all", "agents:control:all", "agents:history:all", "agents:tools"],
+    "network": []
+  },
+  "contributes": {
+    "tabs": [{ "name": "radar", "title": "雷达", "entry": "radar.html" }],
+    "mcpServers": [{ "tools": "tools.js" }]
+  },
+  "license": "MIT"
+}

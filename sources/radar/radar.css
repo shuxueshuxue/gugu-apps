@@ -1,0 +1,6 @@
+body { margin: 0; }
+main { padding: var(--em-spacing-lg); gap: var(--em-spacing-lg); }
+header { align-items: center; gap: var(--em-spacing-sm); }
+header h3 { margin: 0; }
+header #refresh { margin-left: auto; }
+.failed { color: var(--em-foreground-destructive); }
