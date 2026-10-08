@@ -1,0 +1,22 @@
+name: verify
+# PR 上:照每个新版本记录的 repo@commit 重新打包、逐字节核 sha256;已上线的版本行不许改。不需要任何密钥。
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - name: Rebuild and check every new version
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify.mjs --base "origin/${{ github.base_ref }}"

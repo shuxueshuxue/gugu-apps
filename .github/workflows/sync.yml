@@ -1,0 +1,40 @@
+name: sync
+# 合并到 main 后:把索引同步到下载站 market/。这是唯一拿到下载站钥匙(environment: mirror,只放 main)的 job。
+# 钥匙能写整个发布桶;只写 market/、除 index.json 外 forbid-overwrite,由 scripts/sync.mjs 的 putObject 硬守。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    environment: mirror
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --no-audit --no-fund
+      # 直接推到 main 的也照样核一遍:和推之前那一版比,已上线的版本行不许改。
+      - name: Verify against the previous main
+        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify.mjs --base "${{ github.event.before }}"
+      - name: Sync to the download site
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ALIYUN_ACCESS_KEY_ID: ${{ secrets.ALIYUN_ACCESS_KEY_ID }}
+          ALIYUN_ACCESS_KEY_SECRET: ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
+          ALIYUN_OSS_BUCKET: ${{ secrets.ALIYUN_OSS_BUCKET }}
+          ALIYUN_OSS_REGION: ${{ secrets.ALIYUN_OSS_REGION }}
+        run: node scripts/sync.mjs
+      - name: Read the index back from the download site
+        run: curl -fsS "https://download.gugu.nextmind.space/market/index.json" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const i=JSON.parse(s);console.log(i.apps.map(a=>a.id+"@"+a.versions.map(v=>v.version).join(",")).join("\n")||"(empty)")})'
