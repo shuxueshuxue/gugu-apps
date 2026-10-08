@@ -148,8 +148,8 @@ async function check() {
       } else if (row.status === 'needs_user' && sub.events.includes('waiting')) {
         await fire(sub, 'waiting', row)
       } else if (before.status === 'working' && row.status === 'idle' && sub.events.includes('done')) {
-        // 被打断(plain)不是跑完;旧版咕咕没有 detail,只能按跑完算。
-        if (row.detail === undefined || row.detail === 'done') await fire(sub, 'done', row)
+        // 被打断(plain)不是跑完。细分问不到(null,或这一版咕咕不交这一格)时分不出来,只能按跑完算。
+        if ((row.detail ?? null) !== 'plain') await fire(sub, 'done', row)
       }
     }
     if (row.status === 'working' && sub.events.includes('stuck')) {
