@@ -1,0 +1,2 @@
+/* The file is gone (glue.js): what is shown is no longer it — dimmed, and not to be used, until it is back. */
+body[data-file="gone"] > :not([role="status"], [role="alert"]) { opacity: .45; filter: grayscale(1); }

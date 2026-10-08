@@ -1,0 +1,24 @@
+{
+  "id": "market-index-card",
+  "name": "市场卡片探针(索引仓测试)",
+  "description": "App 市场(GitHub 索引仓)车道的测试 App:一个群 App,测 agent 从市场装上再发卡片进群、群里另一个人从卡片装。测完就从市场藏起来。",
+  "author": "咕咕测试",
+  "version": "0.1.0",
+  "apiVersion": 3,
+  "engines": {
+    "gugu": ">=0.2.40"
+  },
+  "entry": "main.html",
+  "icon": "icon.png",
+  "contributes": {
+    "tabs": [
+      {
+        "name": "main",
+        "title": "市场卡片探针",
+        "entry": "main.html",
+        "opensFiles": { "chat": [".market-index-card.json"] }
+      }
+    ]
+  },
+  "license": "MIT"
+}
