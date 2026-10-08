@@ -11,6 +11,15 @@
       "sha256": "51ca0b7d40238191497ce4203ca0e24d0e2cbf5d2ed6fab2a27e59dbdb44b0ad",
       "bytes": 2003,
       "yanked": null
+    },
+    {
+      "version": "0.1.1",
+      "repo": "shuxueshuxue/gugu-apps",
+      "path": "examples/market-index-probe",
+      "commit": "27da3c5e896d65364f4f1a5ef1aefb7187efb9c1",
+      "sha256": "6d9faad6f669a3c9a4790007baf5eaab5c83b5f3e092bb03148c3acf60b0fd28",
+      "bytes": 2066,
+      "yanked": null
     }
   ]
 }
