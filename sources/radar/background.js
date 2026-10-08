@@ -63,6 +63,14 @@ async function describe(event, row, sub, extra) {
   return `雷达:${name(row)} 这一轮跑完了。${await lastWords(row.agentId)}`
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** The engine's failure, read again a moment after the error showed (null if there still is none). */
+async function failureSoon(agentId) {
+  await sleep(3000)
+  return (await g.listAgents()).find((row) => row.agentId === agentId)?.failure ?? null
+}
+
 async function fire(sub, event, row, extra) {
   const fired = (state.fired[sub.id] ??= {})
   if (fired[event]) return
@@ -113,6 +121,8 @@ async function check() {
     }
     if (!firstLook && before && before.status !== row.status) {
       if (row.status === 'error') {
+        // 引擎死时,状态常比 failure 先到一步(连接先断、那一轮先按出错收尾):等一下再读一次这一行。
+        if (!row.failure) row.failure = await failureSoon(row.agentId)
         // 引擎自己没了(failure 有值)算 gone;只订了 failed 的,照样告诉它出错了。
         if (row.failure && sub.events.includes('gone')) await fire(sub, 'gone', row)
         else if (sub.events.includes('failed')) await fire(sub, 'failed', row)
