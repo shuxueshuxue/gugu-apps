@@ -2,13 +2,37 @@
 <html lang="zh-CN">
 <head><meta charset="utf-8"><title>雷达</title><link rel="stylesheet" href="radar.css"></head>
 <body>
-  <main class="stack">
-    <header class="row"><h3>雷达</h3><small id="checked" class="muted"></small><button id="refresh" aria-label="现在看一次"><gugu-icon name="refresh"></gugu-icon></button></header>
-    <p id="alert" role="alert" hidden></p>
-    <section class="stack"><h5>谁在盯谁</h5><div id="subs"></div></section>
-    <section id="ended" class="stack" hidden></section>
-    <section class="stack"><h5>最近投递</h5><div id="log"></div></section>
-  </main>
+  <header id="bar">
+    <strong>雷达</strong>
+    <div role="tablist" id="modes">
+      <button role="tab" id="mode-local" aria-selected="true">这个任务</button>
+      <button role="tab" id="mode-all" aria-selected="false">全部</button>
+    </div>
+    <label id="depth-box">深度 <select id="depth"><option>1</option><option>2</option><option>3</option></select></label>
+    <small id="checked" class="muted"></small>
+    <button id="refresh" aria-label="现在看一次"><gugu-icon name="refresh"></gugu-icon></button>
+  </header>
+  <p id="alert" role="alert" hidden></p>
+  <div id="body">
+    <div id="stage">
+      <svg id="graph" aria-label="订阅关系图"></svg>
+      <p id="empty" role="status" hidden></p>
+      <div id="tip" hidden></div>
+      <ul id="legend">
+        <li><span class="dot status-working"></span>在干活</li>
+        <li><span class="dot status-needs_user"></span>等人</li>
+        <li><span class="dot status-idle"></span>空闲</li>
+        <li><span class="dot status-error"></span>出错</li>
+        <li><span class="line watch"></span>盯着</li>
+        <li><span class="line deliver"></span>投给</li>
+      </ul>
+    </div>
+    <aside id="side">
+      <section id="detail" class="stack" hidden></section>
+      <section class="stack"><h5>最近投递</h5><div id="log"></div></section>
+    </aside>
+  </div>
+  <script src="graph.js"></script>
   <script src="radar.js"></script>
 </body>
 </html>
