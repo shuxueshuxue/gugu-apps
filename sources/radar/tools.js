@@ -7,6 +7,15 @@
 import { createHash } from 'node:crypto'
 import { watchArgs, readJson, resolveAgent, listSubs, readSub, writeSub, removeSub, EVENTS, DEFAULT_EVENTS } from './store.js'
 
+// One program serves every session (gugu starts one copy per App), so writes are taken one at a time here: two
+// watches of the same (who, whom, for whom) in flight together merge their events instead of the later one winning.
+let lane = Promise.resolve()
+const oneAtATime = (fn) => {
+  const run = lane.then(fn, fn)
+  lane = run.catch(() => {})
+  return run
+}
+
 export const watch = {
   description:
     'Be told when another agent on this computer changes state. events: failed (its turn ended in an error), gone (its ' +
@@ -27,55 +36,63 @@ export const watch = {
       to: { type: 'string', description: 'Who is told (session:<id>, aid:<id>, user:<uuid>). Default: you.' },
     },
   },
-  async run(args, { agent }) {
-    if (!agent) throw new Error('watch is for agents: gugu did not say which agent is calling')
-    const { target, events, stuckMinutes, to } = watchArgs(args)
-    const snapshot = await readJson('agents.json', null)
-    if (!snapshot) throw new Error("雷达's background page has not listed this computer's agents yet; is 雷达 enabled? Try again in a moment.")
-    const watched = resolveAgent(snapshot, target)
-    if (!watched) {
-      throw new Error(
-        `${target} is not an agent on this computer (list from ${snapshot.at}). 雷达 only sees this computer's agents for now; ` +
-          'agents on other computers come with gugu\'s cross-machine work (PR-5).',
-      )
-    }
-    const receiver = to ? resolveAgent(snapshot, to) : { agentId: agent }
-    if (!receiver) throw new Error(`${to} is not an agent on this computer, so 雷达 cannot tell it anything.`)
-    if (watched.agentId === receiver.agentId) throw new Error('an agent cannot watch itself: when it fails it cannot be told')
-    const titleOf = (agentId) => snapshot.agents.find((a) => a.agentId === agentId)?.title ?? null
-    const told = receiver.agentId === agent ? 'you' : receiver.agentId
-
-    // The same (who, whom, for whom) is one subscription — its id is that triple's hash, so asking again (even two
-    // asks in flight together) lands on the same file: it widens it, never multiplies the messages.
-    const id = `w${createHash('sha256').update(`${agent}|${watched.agentId}|${receiver.agentId}`).digest('hex').slice(0, 16)}`
-    const same = await readSub(id)
-    if (same) {
-      same.events = [...new Set([...same.events, ...events])]
-      if (events.includes('stuck')) same.stuckMinutes = stuckMinutes
-      await writeSub(same)
-      return { id, merged: true, watching: `${watched.title} (session:${watched.sessionId})`, events: same.events, told }
-    }
-    // Titles as they were at watch time: an archived session is gone from the list, and its subscription still has a name.
-    await writeSub({
-      id, by: agent, target: watched.agentId, to: receiver.agentId, events, stuckMinutes, createdAt: new Date().toISOString(),
-      titles: { by: titleOf(agent), target: watched.title, to: titleOf(receiver.agentId) },
-    })
-    return { id, watching: `${watched.title} (session:${watched.sessionId})`, events, ...(events.includes('stuck') ? { stuck_minutes: stuckMinutes } : {}), told }
+  run(args, call) {
+    return oneAtATime(() => watchOnce(args, call))
   },
+}
+
+async function watchOnce(args, { agent }) {
+  if (!agent) throw new Error('watch is for agents: gugu did not say which agent is calling')
+  const { target, events, stuckMinutes, to } = watchArgs(args)
+  const snapshot = await readJson('agents.json', null)
+  if (!snapshot) throw new Error("雷达's background page has not listed this computer's agents yet; is 雷达 enabled? Try again in a moment.")
+  const watched = resolveAgent(snapshot, target)
+  if (!watched) {
+    throw new Error(
+      `${target} is not an agent on this computer (list from ${snapshot.at}). 雷达 only sees this computer's agents for now; ` +
+        'agents on other computers come with gugu\'s cross-machine work (PR-5).',
+    )
+  }
+  const receiver = to ? resolveAgent(snapshot, to) : { agentId: agent }
+  if (!receiver) throw new Error(`${to} is not an agent on this computer, so 雷达 cannot tell it anything.`)
+  if (watched.agentId === receiver.agentId) throw new Error('an agent cannot watch itself: when it fails it cannot be told')
+  const titleOf = (agentId) => snapshot.agents.find((a) => a.agentId === agentId)?.title ?? null
+  const told = receiver.agentId === agent ? 'you' : receiver.agentId
+
+  // The same (who, whom, for whom) is one subscription — its id is that triple's hash, so asking again (even two
+  // asks in flight together) lands on the same file: it widens it, never multiplies the messages.
+  const id = `w${createHash('sha256').update(`${agent}|${watched.agentId}|${receiver.agentId}`).digest('hex').slice(0, 16)}`
+  const same = await readSub(id)
+  if (same) {
+    same.events = [...new Set([...same.events, ...events])]
+    if (events.includes('stuck')) same.stuckMinutes = stuckMinutes
+    await writeSub(same)
+    return { id, merged: true, watching: `${watched.title} (session:${watched.sessionId})`, events: same.events, told }
+  }
+  // Titles as they were at watch time: an archived session is gone from the list, and its subscription still has a name.
+  await writeSub({
+    id, by: agent, target: watched.agentId, to: receiver.agentId, events, stuckMinutes, createdAt: new Date().toISOString(),
+    titles: { by: titleOf(agent), target: watched.title, to: titleOf(receiver.agentId) },
+  })
+  return { id, watching: `${watched.title} (session:${watched.sessionId})`, events, ...(events.includes('stuck') ? { stuck_minutes: stuckMinutes } : {}), told }
 }
 
 export const unwatch = {
   description: 'Stop a subscription you made, or one that sends its messages to you (its id from watch or watching).',
   inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
-  async run({ id }, { agent }) {
-    const sub = (await listSubs()).find((s) => s.id === String(id))
-    // No agent = the person, from 雷达's tab: they may stop any of them.
-    if (!sub || (agent && sub.by !== agent && sub.to !== agent)) {
-      throw new Error(`you have no subscription ${id} (none made by you or sent to you); watching lists them`)
-    }
-    await removeSub(sub.id)
-    return `stopped ${sub.id}`
+  run(args, call) {
+    return oneAtATime(() => unwatchOnce(args, call))
   },
+}
+
+async function unwatchOnce({ id }, { agent }) {
+  const sub = (await listSubs()).find((s) => s.id === String(id))
+  // No agent = the person, from 雷达's tab: they may stop any of them.
+  if (!sub || (agent && sub.by !== agent && sub.to !== agent)) {
+    throw new Error(`you have no subscription ${id} (none made by you or sent to you); watching lists them`)
+  }
+  await removeSub(sub.id)
+  return `stopped ${sub.id}`
 }
 
 export const watching = {
