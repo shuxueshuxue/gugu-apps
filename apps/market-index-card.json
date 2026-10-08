@@ -1,0 +1,16 @@
+{
+  "id": "market-index-card",
+  "unlisted": false,
+  "deprecated": null,
+  "versions": [
+    {
+      "version": "0.1.0",
+      "repo": "shuxueshuxue/gugu-apps",
+      "path": "examples/market-index-card",
+      "commit": "849b6c66266c13147b3d864a9d854d51c379ce03",
+      "sha256": "1a1a836151573af4409d00253e0680aad873a4c7a0496f609dc772c82b5e4e89",
+      "bytes": 2117,
+      "yanked": null
+    }
+  ]
+}
