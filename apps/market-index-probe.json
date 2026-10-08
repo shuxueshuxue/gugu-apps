@@ -1,7 +1,10 @@
 {
   "id": "market-index-probe",
   "unlisted": false,
-  "deprecated": null,
+  "deprecated": {
+    "note": "测试停维:改用市场卡片探针",
+    "replacedBy": "market-index-card"
+  },
   "versions": [
     {
       "version": "0.1.0",
@@ -37,7 +40,9 @@
       "commit": "d97f4c9876dab2195bf54678172fec5b00c5cb52",
       "sha256": "3476c8648da4a366b831b44814e0f872dd6494c6cf0f10e601f1064207578f5f",
       "bytes": 2175,
-      "yanked": null
+      "yanked": {
+        "reason": "测试撤回:这一版故意撤掉"
+      }
     }
   ]
 }
