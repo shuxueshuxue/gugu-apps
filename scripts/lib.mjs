@@ -89,7 +89,9 @@ export const metaKey = (id, version) => `meta/${id}/${version.version}.json`;
 // ── 源码 ──────────────────────────────────────────────────────────────────
 
 /**
- * 把 repo@commit 浅取到一个临时目录,回 { root, dir, cleanup }:dir 是那一版的 App 目录。
+ * 把 repo@commit 取到一个临时目录,回 { root, dir, cleanup }:dir 是那一版的 App 目录。
+ * 这个提交必须在 repo 默认分支的历史里:GitHub 按 sha 也给同一 fork 网络里别人仓的提交,
+ * 不核的话一个只在 fork 里的提交也会被当成「代码在 owner/repo」(复核 96 R5,10-08 实测 octocat/Hello-World 取得到)。
  * 有 GITHUB_TOKEN / GH_TOKEN 就带上(索引仓自己是私有的);公开仓不需要。
  * `GUGU_APPS_GIT_BASE` 只给测试换成本地仓,默认就是 GitHub。
  */
@@ -103,10 +105,19 @@ export function fetchSource(version) {
     const auth = token && url.startsWith('https://github.com/')
       ? ['-c', `http.extraheader=AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`]
       : [];
-    const git = (...args) => execFileSync('git', args, { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
+    const git = (...args) => execFileSync('git', [...auth, ...args], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
     git('init', '-q');
-    git(...auth, 'fetch', '-q', '--depth', '1', url, version.commit);
-    git('checkout', '-q', 'FETCH_HEAD');
+    git('remote', 'add', 'origin', url);
+    // 只取提交(tree:0),文件在 checkout 时按需取;本地仓不认过滤就整份取,结果一样。
+    git('fetch', '-q', '--filter=tree:0', 'origin', 'HEAD');
+    const defaultTip = git('rev-parse', 'FETCH_HEAD').toString().trim();
+    git('fetch', '-q', '--filter=tree:0', 'origin', version.commit);
+    try {
+      git('merge-base', '--is-ancestor', version.commit, defaultTip);
+    } catch {
+      fail(`${version.commit} 不在 ${version.repo} 默认分支的历史里(只在某个 fork 或别的分支上)`);
+    }
+    git('checkout', '-q', version.commit);
     const dir = resolve(root, version.path);
     if (dir !== root && !dir.startsWith(root + sep)) fail(`path 越出仓外: ${version.path}`);
     if (!existsSync(dir) || !statSync(dir).isDirectory()) fail(`${version.repo}@${version.commit} 里没有目录 ${version.path}`);

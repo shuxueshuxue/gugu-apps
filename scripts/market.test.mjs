@@ -131,6 +131,22 @@ test('verify:上过线的版本改 commit / 删掉 / 收回撤回都红;只加 y
   commitIndex('probe 0.2.0');
 });
 
+test('verify:提交不在源码仓默认分支的历史里(只在 fork / 别的分支上)就红;默认分支上的照常绿', async () => {
+  const repo = join(sources, 'owner', 'probe');
+  const main = git(repo, 'rev-parse', '--abbrev-ref', 'HEAD');
+  git(repo, 'checkout', '-q', '-b', 'side');
+  const sideOnly = await recordFor(commitProbe('0.3.0'), '0.3.0');
+  git(repo, 'checkout', '-q', main);
+  const app = JSON.parse(readFileSync(join(index, 'apps', 'probe.json'), 'utf8'));
+  const base = git(index, 'rev-parse', 'HEAD');
+  writeIndex({ ...app, versions: [...app.versions, sideOnly] });
+  const red = verify(base);
+  assert.equal(red.ok, false);
+  assert.match(red.out, /不在 owner\/probe 默认分支的历史里/);
+  writeIndex(app);
+  assert.equal(verify(base).ok, true);
+});
+
 test('putObject:market/ 以外一律拒绝,一个字节都不写', async () => {
   const oss = new FakeOss();
   for (const key of ['releases/desktop/latest/latest-mac.yml', 'market/../releases/x', 'marketing/x']) {

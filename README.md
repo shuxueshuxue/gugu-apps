@@ -38,7 +38,7 @@
 
 - `verify`(PR):照每个新版本的 `repo@commit` 把 `path` 重新打包,sha256 与字节数逐字节对上;
   `manifest.json` 的 id / 版本对上、写了 `engines.gugu`;`CHANGELOG.md` 有 `## <版本>` 这一节;图标是 PNG(≤ 32 KiB、≤ 512px)。
-  源码仓要是公开仓,或者本仓自己。
+  源码仓要是公开仓,或者本仓自己;提交必须在源码仓默认分支的历史里(GitHub 按 sha 也给 fork 里的提交,不核就会把 fork 的代码记成「代码在 owner/repo」)。
 - `sync`(合并到 `main`,environment `mirror`):写 `market/bundles|meta|media/…`,每个文件只写一次
   (同名同字节跳过,不同字节报红),最后覆盖 `market/index.json`。只写 `market/` 下面,由 `scripts/sync.mjs` 的 `putObject` 硬守。
 
@@ -46,3 +46,9 @@
 `jszip` 锁在 `package-lock.json`。改它等于改所有已发布版本的 sha256 —— 别改。
 
 `npm test` 跑本地格:打包可重复、sha 错一位就红、改旧版本就红、只写 `market/`、不覆盖、重跑零写入。
+
+## 公开之前
+
+「只写 `market/`、不覆盖」现在只靠 `scripts/sync.mjs` 守(下载站的钥匙能写整个发布桶),而私有免费仓开不了分支保护,
+能推 `main` 的人就能改它。所以**公开的同时打开 `main` 的分支保护(只有 owner 能批)**;以后有协作者能推 `main`,
+就换成只给 `market/*` Put、不给 Delete 的 RAM 子账号钥匙。
