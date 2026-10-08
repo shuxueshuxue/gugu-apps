@@ -170,14 +170,14 @@ function renderSide() {
   if (selected?.kind === 'node') {
     const row = agents.get(selected.id)
     const related = Object.values(subs).filter((s) => s.by === selected.id || s.target === selected.id || s.to === selected.id)
-    detail.replaceChildren(
+    detail.replaceChildren(...[
       h('h5', {}, titleOf(selected.id)),
       h('p', {}, statusText(row)),
       row?.lastActionAt ? h('p', {}, '最后一次动作 ', h('gugu-time', { datetime: row.lastActionAt })) : null,
       // 打开那条会话:咕咕还没给 App 这个口子(页面里点链接会被拦),先如实说。
       h('button', { disabled: true, title: '需要咕咕补一个口子:App 里点链接打开会话' }, '打开会话(需要咕咕补一个口子)'),
       related.length ? h('ul', { class: 'list' }, related.map(subLine)) : h('p', { class: 'muted' }, '没有和它有关的订阅'),
-    )
+    ].filter(Boolean))
     shownLog = log.filter((e) => e.target === selected.id || e.to === selected.id || subs[e.sub]?.by === selected.id)
   } else if (selected?.kind === 'edge') {
     const edge = allEdges().find((e) => e.id === selected.id)
