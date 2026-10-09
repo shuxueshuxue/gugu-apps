@@ -105,8 +105,8 @@
         const path = `M${a.x},${a.y} Q${mx},${my} ${ex},${ey}`
         g.line.setAttribute('d', path)
         g.hit.setAttribute('d', path)
-        g.text.setAttribute('x', mx)
-        g.text.setAttribute('y', my - 4)
+        // the count sits on the curve itself, halfway along (not at the bend's control point, which is off the line)
+        if (g.badge) g.badge.setAttribute('transform', `translate(${(a.x + 2 * mx + ex) / 4},${(a.y + 2 * my + ey) / 4})`)
       }
       for (const n of nodes) {
         const g = nodeEls.get(n.id), p = pos.get(n.id)
@@ -136,13 +136,18 @@
       for (const e of edges) {
         const g = el('g', { class: `edge${e.failed ? ' edge-failed' : ''}`, 'data-edge': e.id }, edgeLayer)
         const line = el('path', { class: 'edge-line', 'marker-end': `url(#${e.failed ? 'arrow-failed' : 'arrow'})` }, g)
+        let badge = null
+        if (e.label) {
+          badge = el('g', { class: 'edge-badge' }, g)
+          el('rect', { x: -(4 + e.label.length * 3.5), y: -8, width: 8 + e.label.length * 7, height: 16, rx: 8 }, badge)
+          el('text', { 'text-anchor': 'middle', 'dominant-baseline': 'central' }, badge).textContent = e.label
+        }
+        // drawn last, so hovering the count is hovering the line
         const hit = el('path', { class: 'edge-hit' }, g)
-        const text = el('text', { class: 'edge-label', 'text-anchor': 'middle' }, g)
-        text.textContent = e.label
         hit.addEventListener('click', (ev) => { ev.stopPropagation(); handlers.onEdgeClick?.(e) })
         hit.addEventListener('mouseenter', (ev) => handlers.onEdgeHover?.(e, ev))
         hit.addEventListener('mouseleave', () => handlers.onEdgeHover?.(null))
-        edgeEls.set(e.id, { g, line, hit, text })
+        edgeEls.set(e.id, { g, line, hit, badge })
       }
       nodeLayer.replaceChildren()
       nodeEls = new Map()

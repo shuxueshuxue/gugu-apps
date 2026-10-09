@@ -34,7 +34,10 @@ body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow
 .edge-line { fill: none; stroke: var(--em-foreground-muted); stroke-width: 1.5; }
 .edge-failed .edge-line { stroke: var(--em-foreground-destructive); }
 .edge-hit { fill: none; stroke: transparent; stroke-width: 12; cursor: pointer; }
-.edge-label { fill: var(--em-foreground); font-size: var(--em-font-caption); paint-order: stroke; stroke: var(--em-background); stroke-width: 3px; }
+.edge-badge rect { fill: var(--em-background); stroke: var(--em-foreground-muted); stroke-width: 1; }
+.edge-badge text { fill: var(--em-foreground); font-size: 11px; font-weight: 600; }
+.edge-failed .edge-badge rect { stroke: var(--em-foreground-destructive); }
+.edge-failed .edge-badge text { fill: var(--em-foreground-destructive); }
 .arrowhead.edge-path { fill: var(--em-foreground-muted); }
 .arrowhead.edge-failed { fill: var(--em-foreground-destructive); }
 .edge.pulse .edge-line { animation: radar-pulse 1.6s ease-out 2; }
