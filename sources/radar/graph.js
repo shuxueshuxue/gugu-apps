@@ -8,8 +8,10 @@
  * arrived (empty for none). A delivery sends a dot down its path; the count (or the red) shows when the dot gets there.
  *
  * Motion is drawn by one requestAnimationFrame loop that runs only while something moves — the layout settling, a
- * drag, the camera, a dot, the radar sweep — and stops when the tab is hidden. Each frame changes attributes
- * (transform, d, opacity) on elements that already exist; the DOM is diffed by id on update, never rebuilt per frame.
+ * drag, the camera, a dot — and then stops. The radar sweep and the light it leaves on each agent are not in it: they
+ * are compositor animations on two HTML layers behind the svg (a turning conic-gradient disc, and one round glow per
+ * agent whose opacity animation is timed to the agent's angle), placed by JS only when something moves. Each frame
+ * changes attributes (transform, d) on elements that already exist; the DOM is diffed by id, never rebuilt per frame.
  * With 「减少动态效果」 on, the layout settles in one go and nothing moves by itself.
  * Colours come only from gugu's theme tokens (--em-*), in radar.css.
  */
@@ -40,20 +42,18 @@
     // the radar: rings (and, in the whole-graph view, spokes) behind everything; the sweep turns around the center
     const back = el('g', { class: 'radar-back' }, view)
     const rings = el('g', { class: 'rings' }, back)
-    const sweep = el('g', { class: 'sweep' }, back)
-    const step = SWEEP_DEG / SWEEP_SLICES
-    for (let i = 0; i < SWEEP_SLICES; i++) {
-      // slice i trails the beam by i steps; drawn at radius 100 and scaled to the outer ring
-      const a0 = (-(i + 1) * step * Math.PI) / 180, a1 = (-i * step * Math.PI) / 180
-      el('path', {
-        d: `M0,0 L${100 * Math.cos(a0)},${100 * Math.sin(a0)} A100,100 0 0,1 ${100 * Math.cos(a1)},${100 * Math.sin(a1)} Z`,
-        class: 'sweep-slice', 'fill-opacity': (0.2 * (1 - i / SWEEP_SLICES) ** 1.6).toFixed(3),
-      }, sweep)
-    }
-    el('line', { x1: 0, y1: 0, x2: 100, y2: 0, class: 'sweep-beam' }, sweep)
     const edgeLayer = el('g', {}, view)
     const nodeLayer = el('g', {}, view)
     const fxLayer = el('g', { class: 'fx' }, view)
+    // behind the svg (which is see-through): the sweep disc and the agents' glows, both moved by the compositor
+    const sweepEl = document.createElement('div')
+    sweepEl.className = 'sweep'
+    const glowLayer = document.createElement('div')
+    glowLayer.className = 'glows'
+    svg.before(sweepEl, glowLayer)
+    // one turn every SWEEP_MS, on the document's clock: the glows below are timed against the same clock
+    const spin = sweepEl.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }], { duration: SWEEP_MS, iterations: Infinity })
+    spin.startTime = 0
 
     const pos = new Map() // id -> { x, y, vx, vy, pinned }
     let nodes = []
@@ -66,18 +66,20 @@
     let autoFit = true // the camera follows the layout until the person pans or zooms
     let dragging = null
     let flights = []
-    const glow = new Map() // id -> 0..1, lit by the sweep
-    let sweepAngle = 0
-    let sweepScale = 1
+    let sweepReach = 100 // the outer ring's radius, in graph units
     let raf = 0
     let lastT = 0
     let focus = null
     let insets = { top: 0, right: 0, bottom: 0, left: 0 }
     const work = [] // ms of this loop's work per frame, the last 600 frames
+    let framesEver = 0 // every frame this loop has drawn: unchanged over a stretch of time = it was not running
     const gaps = [] // ms between frames while it runs
 
     const size = () => { const r = svg.getBoundingClientRect(); return { w: Math.max(r.width, 1), h: Math.max(r.height, 1) } }
-    const applyView = () => view.setAttribute('transform', `translate(${zoom.x},${zoom.y}) scale(${zoom.k})`)
+    function applyView() {
+      view.setAttribute('transform', `translate(${zoom.x},${zoom.y}) scale(${zoom.k})`)
+      placeRadar()
+    }
     const still = () => reduced.matches
 
     /* ---------- the loop ---------- */
@@ -100,9 +102,9 @@
       if (moving) { tick(dt); busy = true }
       if (moving || autoFit) busy = camera() || busy
       if (moving) draw()
-      if (sweepOn()) { turnSweep(dt); busy = true }
       if (flights.length) { fly(performance.now()); busy = true }
       push(work, performance.now() - t0)
+      framesEver += 1
       if (busy) raf = requestAnimationFrame(frame)
       else lastT = 0
     }
@@ -214,7 +216,7 @@
     let ringsKey = ''
     function drawRings() {
       const ps = nodes.map((n) => pos.get(n.id)).filter(Boolean)
-      if (!ps.length) { rings.replaceChildren(); ringsKey = ''; sweep.style.display = 'none'; return }
+      if (!ps.length) { rings.replaceChildren(); ringsKey = ''; placeRadar(); return }
       // around the center agent; in the whole-graph view, around the middle of everyone, with spokes: a faint grid
       let cx = 0, cy = 0
       if (!center) { cx = ps.reduce((s, p) => s + p.x, 0) / ps.length; cy = ps.reduce((s, p) => s + p.y, 0) / ps.length }
@@ -234,30 +236,34 @@
         const a = (Number(l.dataset.i) * Math.PI) / 6
         l.setAttribute('x2', outer * Math.cos(a)); l.setAttribute('y2', outer * Math.sin(a))
       }
-      sweepScale = outer / 100
-      sweep.style.display = sweepOn() ? '' : 'none'
-      sweep.setAttribute('transform', `rotate(${sweepAngle}) scale(${sweepScale})`)
+      sweepReach = outer
+      placeRadar()
     }
     const sweepOn = () => !still() && !!center && pos.has(center)
 
-    function turnSweep(dt) {
-      sweepAngle = (sweepAngle + (dt * 360) / SWEEP_MS) % 360
-      sweep.setAttribute('transform', `rotate(${sweepAngle}) scale(${sweepScale})`)
-      // a node lights up as the beam passes it, then fades
-      const fade = 0.955 ** (dt / 16)
+    /**
+     * Put the sweep disc on the center and each agent's glow on the agent (screen px), and time each glow to light as
+     * the beam passes it. Called when something moved; between those calls the compositor turns and fades on its own.
+     */
+    function placeRadar() {
+      const on = sweepOn()
+      sweepEl.style.display = on ? '' : 'none'
+      glowLayer.style.display = on ? '' : 'none'
+      if (!on) return
+      const r = sweepReach * zoom.k
+      sweepEl.style.width = sweepEl.style.height = `${2 * r}px`
+      sweepEl.style.left = `${zoom.x - r}px`
+      sweepEl.style.top = `${zoom.y - r}px`
+      const size = 2 * (R + 10) * zoom.k
       for (const n of nodes) {
-        if (n.id === center) continue
-        const p = pos.get(n.id), g = nodeEls.get(n.id)
-        if (!p || !g) continue
-        const ang = ((Math.atan2(p.y, p.x) * 180) / Math.PI + 360) % 360
-        const behind = (sweepAngle - ang + 360) % 360
-        const was = glow.get(n.id) ?? 0
-        let v = behind < 6 ? 1 : was * fade
-        if (v < 0.01) v = 0
-        if (v !== was) {
-          glow.set(n.id, v)
-          g.glow.setAttribute('opacity', (v * 0.55).toFixed(3))
-        }
+        const g = nodeEls.get(n.id), p = pos.get(n.id)
+        if (!g || !p || n.id === center) continue
+        g.halo2.style.width = g.halo2.style.height = `${size}px`
+        g.halo2.style.transform = `translate(${zoom.x + p.x * zoom.k - size / 2}px, ${zoom.y + p.y * zoom.k - size / 2}px)`
+        // the disc's beam points up at rotate(0) and turns clockwise: it is over this agent when the turn is at
+        // (its angle + 90°) — so its glow's cycle starts then, on the same clock
+        const ang = (Math.atan2(p.y, p.x) * 180) / Math.PI
+        g.lit.startTime = ((((ang + 90) % 360) + 360) % 360 / 360) * SWEEP_MS
       }
     }
 
@@ -384,7 +390,7 @@
       for (const [id, g] of nodeEls) {
         if (keep.has(id)) continue
         nodeEls.delete(id)
-        glow.delete(id)
+        g.halo2.remove()
         if (still()) g.g.remove()
         else { g.g.classList.add('leaving'); setTimeout(() => g.g.remove(), 320) }
       }
@@ -394,6 +400,7 @@
         for (const c of [...g.g.classList]) if (c === 'center' || c.startsWith('status-')) g.g.classList.remove(c)
         g.g.classList.add('node', ...cls.split(' ').slice(1))
         g.label.textContent = n.label.length > 24 ? `${n.label.slice(0, 23)}…` : n.label
+        g.halo2.className = `glow status-${n.status ?? 'none'}`
         // trouble shows once: one shake when it turns red, not a red that keeps moving
         if (n.status === 'error' && old.has(n.id) && old.get(n.id).status !== 'error' && !still()) {
           g.body.classList.remove('shake')
@@ -440,7 +447,6 @@
     function makeNode(n) {
       const g = el('g', { class: 'node', 'data-node': n.id, tabindex: 0 }, nodeLayer)
       const body = el('g', { class: 'node-body' }, g)
-      const glowEl = el('circle', { r: R + 10, class: 'node-glow', opacity: 0 }, body)
       el('circle', { r: R + 4, class: 'node-aura' }, body)
       el('circle', { r: R, class: 'node-ping' }, body)
       const halo = el('circle', { r: R + 6, class: 'node-halo' }, body)
@@ -451,7 +457,12 @@
       g.addEventListener('mouseleave', () => { setFocus(null); handlers.onHover?.(null) })
       g.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') handlers.onNodeClick?.(byId(n.id)) })
       dragNode(g, n.id)
-      const made = { g, body, glow: glowEl, halo, label }
+      // its glow, in the layer behind the svg: lit by the passing beam, then fading (a compositor animation)
+      const halo2 = document.createElement('div')
+      halo2.className = 'glow'
+      glowLayer.append(halo2)
+      const lit = halo2.animate([{ opacity: 0.5 }, { opacity: 0, offset: 0.22 }, { opacity: 0 }], { duration: SWEEP_MS, iterations: Infinity })
+      const made = { g, body, halo, label, halo2, lit }
       nodeEls.set(n.id, made)
       return made
     }
@@ -467,6 +478,8 @@
       // drawn last, so hovering the count is hovering the line
       const hit = el('path', { class: 'edge-hit' }, g)
       const edge = () => edges.find((x) => x.id === e.id)
+      // a press on a path is the path's, not the background's (whose pan would capture the pointer and take the click)
+      hit.addEventListener('pointerdown', (ev) => ev.stopPropagation())
       hit.addEventListener('click', (ev) => { ev.stopPropagation(); handlers.onEdgeClick?.(edge()) })
       hit.addEventListener('mouseenter', (ev) => { setFocus({ edge: e.id }); handlers.onEdgeHover?.(edge(), ev) })
       hit.addEventListener('mouseleave', () => { setFocus(null); handlers.onEdgeHover?.(null) })
@@ -542,6 +555,7 @@
       for (const g of edgeEls.values()) { g.flying = 0; if (g.pending) { show(g, g.pending); g.pending = null } }
       settleNow()
       camera()
+      placeRadar()
     })
 
     /** What the floating cards leave of the stage ({ top, right, bottom, left }, px); the camera keeps to it. */
@@ -564,7 +578,7 @@
         const s = [...list].sort((a, b) => a - b)
         return +s[Math.min(s.length - 1, Math.floor(p * s.length))].toFixed(2)
       }
-      return { frames: work.length, workP50: q(work, 0.5), workP95: q(work, 0.95), workMax: q(work, 1), gapP50: q(gaps, 0.5), gapP95: q(gaps, 0.95) }
+      return { framesEver, running: raf !== 0, frames: work.length, workP50: q(work, 0.5), workP95: q(work, 0.95), workMax: q(work, 1), gapP50: q(gaps, 0.5), gapP95: q(gaps, 0.95) }
     }
 
     applyView()
