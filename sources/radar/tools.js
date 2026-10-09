@@ -25,7 +25,9 @@ export const watch = {
     '(an approval, a question, a plan); "everything" — all of that, and also every time it finishes, with its last words. ' +
     `Default "${DEFAULT_LEVEL}". Each thing is told once, until the agent starts working again. Asking again for the same ` +
     'agent and the same receiver changes that one subscription. The message arrives in the receiver\'s session from ' +
-    '雷达; there is nothing to reply to, and the receiver can unwatch it. Agents on other computers cannot be watched yet.',
+    '雷达, written in the language gugu shows right now; there is nothing to reply to, and the receiver can unwatch it. ' +
+    'When the watched agent or the receiver is gone (archived or deleted), the subscription ends by itself. ' +
+    'Agents on other computers cannot be watched yet.',
   inputSchema: {
     type: 'object',
     required: ['target'],

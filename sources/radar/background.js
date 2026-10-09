@@ -1,14 +1,15 @@
 /**
  * 雷达 —— 后台页:盯着这台电脑上的 agent,订阅的事一发生就投一条消息给订阅者。
  *
- * 订阅在 subs.json(agent 用 watch / unwatch 写,页签上「撤掉」也写);这里只读它。
+ * 订阅一条一个文件 subs/<id>.json(agent 用 watch / unwatch 写,页签上「不再关注」也删);这里只读它们。
  * 自己的账在 state.json:每个 agent 上次看到的状态、每条订阅已经投过哪些事、结束了的订阅、投递记录。
  * agents.json 是给工具看的「这台电脑上有哪些 agent」,每次有变化就重写。
  *
  * 一件事只投一次:同一条订阅的同一件事,要等被盯的 agent 下一次开始干活(转成 working)才会再投。
  */
 
-import { wants } from './levels.js'
+import { LEVELS, wants } from './levels.js'
+import { wordsFor } from './words.js'
 
 const TICK_MS = 30_000
 const LOG_MAX = 200
@@ -43,9 +44,10 @@ async function readSubs() {
 }
 
 /** A subscription whose target is gone ends: its file is removed (by 雷达's own program), its last word kept in a short list. */
-async function endSub(sub, why) {
+async function endSub(sub, why, { loud = false } = {}) {
   // Once per subscription: a removal that keeps failing is retried every look, but said and kept in the list only once.
   const first = !state.ended.some((e) => e.id === sub.id)
+  if (first && loud) g.reportError(`雷达删掉了一条订阅 ${sub.id}：${why}`)
   if (first) state.ended = [...state.ended, { at: nowIso(), id: sub.id, target: sub.titles?.target ?? sub.target, why }].slice(-ENDED_MAX)
   try {
     await g.callProgram('unwatch', { id: sub.id })
@@ -54,37 +56,35 @@ async function endSub(sub, why) {
   }
 }
 
-const WAITS = { approval: '批准一个操作', question: '回答一个问题', plan: '看一份计划', dialog: '处理一个对话框' }
-
 /** Why an agent is gone, in a person's words. */
-function goneWhy(row) {
-  if (!row.sessionId) return '这个任务被归档或删除了'
-  if (row.failure?.kind === 'start-failed') return '它没能启动起来'
-  if (row.failure) return '它的引擎意外退出了'
-  return '原因没读到'
+function goneWhy(W, row) {
+  if (!row.sessionId) return W.goneArchived
+  if (row.failure?.kind === 'start-failed') return W.startFailed
+  if (row.failure) return W.engineQuit
+  return W.goneUnknown
 }
 
 /** What the agent said last, for 「做完了」: an MCP that went deaf still leaves its conclusion here. */
-async function lastWords(agentId) {
+async function lastWords(W, agentId) {
   try {
     const page = await g.readAgentHistory(agentId)
     const said = [...page.messages].reverse().find((m) => m.sender !== 'user' && m.text?.trim())
-    if (!said) return '它这一轮没有说话。'
+    if (!said) return W.saidNothing
     const text = said.text.trim()
-    return `它最后说：\n${text.length > 1500 ? `${text.slice(0, 1500)}…（太长截断了，全文在它的任务里）` : text}`
+    return W.said(text.length > 1500 ? `${text.slice(0, 1500)}${W.cut}` : text)
   } catch (error) {
-    return `（读不到它最后说的话：${error?.message ?? error}）`
+    return W.cannotRead(error?.message ?? error)
   }
 }
 
-/** The reminder, in a person's words — the agent who gets it reads the same sentence a person would. */
-async function describe(event, row, sub, extra) {
+/** The reminder, in a person's words and in gugu's language right now — the told agent reads what a person would. */
+async function describe(W, event, row, extra) {
   const who = row.title
-  if (event === 'failed') return `${who} 停下来报错了。`
-  if (event === 'gone') return `${who} 不在了：${goneWhy(row)}。`
-  if (event === 'stuck') return `${who} 好像卡住了：${extra} 分钟没有新动作。`
-  if (event === 'waiting') return `${who} 在等人${row.detail && WAITS[row.detail] ? WAITS[row.detail] : '处理'}。`
-  return `${who} 做完了。${await lastWords(row.agentId)}`
+  if (event === 'failed') return W.told.failed(who)
+  if (event === 'gone') return W.told.gone(who, goneWhy(W, row))
+  if (event === 'stuck') return W.told.stuck(who, extra)
+  if (event === 'waiting') return W.told.waiting(who, (row.detail && W.waits[row.detail]) || W.waitAny)
+  return W.told.done(who, await lastWords(W, row.agentId))
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -99,8 +99,8 @@ async function fire(sub, event, row, extra) {
   const fired = (state.fired[sub.id] ??= {})
   if (fired[event]) return
   fired[event] = true
-  const where = row.sessionId ? `它的任务 session:${row.sessionId}，` : ''
-  const text = `雷达提醒：${await describe(event, row, sub, extra)}\n（${where}这条不用回复。不想再收到：用 radar 的 unwatch，编号 ${sub.id}。）`
+  const W = wordsFor((await g.getContext())?.locale)
+  const text = W.reminder(await describe(W, event, row, extra), row.sessionId, sub.id)
   const entry = { at: nowIso(), sub: sub.id, target: sub.target, targetTitle: row.title, event, to: sub.to, ok: false, error: null }
   // A path is where reminders travel: from the agent they are about to the one they go to. Its count is kept (only the
   // ones that arrived), all subscriptions on it together; its last failure stays until one arrives again.
@@ -147,6 +147,16 @@ async function check() {
   }
 
   for (const sub of Object.values(subs)) {
+    if (!LEVELS[sub.level]) {
+      // 读不懂的订阅(旧格式,没有 level):❌ 静默不投 —— 说一声,删掉。
+      await endSub(sub, `这条订阅没有雷达认得的 level（${sub.level ?? '没写'}），是旧格式`, { loud: true })
+      continue
+    }
+    if (!byId.has(sub.to)) {
+      // 收提醒的那个不在了:和被关注的不在了一样,这条到此为止(这条路的次数留在 state.paths 里)。
+      await endSub(sub, '收提醒的任务不在了')
+      continue
+    }
     const row = byId.get(sub.target)
     const before = state.last[sub.target]
     if (!row) {
