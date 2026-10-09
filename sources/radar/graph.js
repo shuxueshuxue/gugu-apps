@@ -155,7 +155,10 @@
       const mx = (a.x + b.x) / 2 - (dy / d) * 14, my = (a.y + b.y) / 2 + (dx / d) * 14
       const l = Math.hypot(b.x - mx, b.y - my) || 1
       const ex = b.x - ((b.x - mx) / l) * (R + 3), ey = b.y - ((b.y - my) / l) * (R + 3)
-      return { a, mx, my, ex, ey }
+      // it leaves from the dot's edge, not its middle (an idle dot is see-through)
+      const l0 = Math.hypot(mx - a.x, my - a.y) || 1
+      const s = { x: a.x + ((mx - a.x) / l0) * R, y: a.y + ((my - a.y) / l0) * R }
+      return { a: s, mx, my, ex, ey }
     }
     const along = (c, t) => ({
       x: (1 - t) ** 2 * c.a.x + 2 * (1 - t) * t * c.mx + t * t * c.ex,
