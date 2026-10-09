@@ -36,17 +36,8 @@ body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow
 a.button { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 .sentence { margin: 0; white-space: normal; flex: 1; }
 
-/* ---------- the radar behind the graph ---------- */
-.ring, .spoke { fill: none; stroke: var(--em-border-1); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.ring { opacity: 0.9; }
-.spoke { opacity: 0.6; stroke-dasharray: 2 5; }
-/* the sweep: a disc behind the svg, turned by the compositor; the beam points up, its tail fades behind it */
-.sweep { position: absolute; border-radius: 50%; pointer-events: none; opacity: 0.22; will-change: transform;
-  background: conic-gradient(from -0.5deg, var(--em-foreground-success) 0deg 1deg, transparent 1deg),
-              conic-gradient(transparent 0deg 300deg, var(--em-foreground-success) 360deg); }
-/* each agent's glow, lit as the beam passes it (an opacity animation per glow, timed in graph.js) */
-.glows { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-.glow { position: absolute; left: 0; top: 0; border-radius: 50%; background: var(--node); opacity: 0; will-change: opacity, transform; }
+/* ---------- still, faint rings behind the graph: they only mark the center ---------- */
+.ring { fill: none; stroke: var(--em-border-1); stroke-width: 1; opacity: 0.55; vector-effect: non-scaling-stroke; }
 
 /* ---------- agents ---------- */
 .status-working { --node: var(--em-foreground-info); }

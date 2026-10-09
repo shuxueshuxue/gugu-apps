@@ -8,10 +8,8 @@
  * arrived (empty for none). A delivery sends a dot down its path; the count (or the red) shows when the dot gets there.
  *
  * Motion is drawn by one requestAnimationFrame loop that runs only while something moves — the layout settling, a
- * drag, the camera, a dot — and then stops. The radar sweep and the light it leaves on each agent are not in it: they
- * are compositor animations on two HTML layers behind the svg (a turning conic-gradient disc, and one round glow per
- * agent whose opacity animation is timed to the agent's angle), placed by JS only when something moves. Each frame
- * changes attributes (transform, d) on elements that already exist; the DOM is diffed by id, never rebuilt per frame.
+ * drag, the camera, a dot — and then stops. Each frame changes attributes (transform, d) on elements that already
+ * exist; the DOM is diffed by id, never rebuilt per frame. Behind the graph, a few still, faint rings mark the center.
  * With 「减少动态效果」 on, the layout settles in one go and nothing moves by itself.
  * Colours come only from gugu's theme tokens (--em-*), in radar.css.
  */
@@ -25,9 +23,6 @@
   }
   const R = 14
   const ALPHA_MIN = 0.015
-  const SWEEP_MS = 5000 // one turn of the radar
-  const SWEEP_SLICES = 14
-  const SWEEP_DEG = 56 // how wide the fading tail behind the beam is
   const FLIGHT_MS = 900
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
 
@@ -39,34 +34,24 @@
       el('path', { d: 'M0,0 L10,5 L0,10 z', class: `${cls} arrowhead` }, m)
     }
     const view = el('g', { class: 'view' }, svg)
-    // the radar: rings (and, in the whole-graph view, spokes) behind everything; the sweep turns around the center
+    // still, faint rings behind everything: around the center agent, or (whole graph) around the middle of everyone
     const back = el('g', { class: 'radar-back' }, view)
     const rings = el('g', { class: 'rings' }, back)
     const edgeLayer = el('g', {}, view)
     const nodeLayer = el('g', {}, view)
     const fxLayer = el('g', { class: 'fx' }, view)
-    // behind the svg (which is see-through): the sweep disc and the agents' glows, both moved by the compositor
-    const sweepEl = document.createElement('div')
-    sweepEl.className = 'sweep'
-    const glowLayer = document.createElement('div')
-    glowLayer.className = 'glows'
-    svg.before(sweepEl, glowLayer)
-    // one turn every SWEEP_MS, on the document's clock: the glows below are timed against the same clock
-    const spin = sweepEl.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }], { duration: SWEEP_MS, iterations: Infinity })
-    spin.startTime = 0
-
     const pos = new Map() // id -> { x, y, vx, vy, pinned }
     let nodes = []
     let edges = []
-    const nodeEls = new Map() // id -> { g, body, glow, halo, label }
+    const nodeEls = new Map() // id -> { g, body, halo, label }
     const edgeEls = new Map() // id -> { g, line, badge, hop, rect, text, hit, shown, pending, flying }
     let center = null
+    let lastPathsKey = ''
     let alpha = 0
     let zoom = { k: 1, x: 0, y: 0 }
     let autoFit = true // the camera follows the layout until the person pans or zooms
     let dragging = null
     let flights = []
-    let sweepReach = 100 // the outer ring's radius, in graph units
     let raf = 0
     let lastT = 0
     let focus = null
@@ -76,10 +61,7 @@
     const gaps = [] // ms between frames while it runs
 
     const size = () => { const r = svg.getBoundingClientRect(); return { w: Math.max(r.width, 1), h: Math.max(r.height, 1) } }
-    function applyView() {
-      view.setAttribute('transform', `translate(${zoom.x},${zoom.y}) scale(${zoom.k})`)
-      placeRadar()
-    }
+    const applyView = () => view.setAttribute('transform', `translate(${zoom.x},${zoom.y}) scale(${zoom.k})`)
     const still = () => reduced.matches
 
     /* ---------- the loop ---------- */
@@ -212,12 +194,11 @@
       return Math.abs(to.k - zoom.k) > 0.002 || Math.abs(to.x - zoom.x) > 0.5 || Math.abs(to.y - zoom.y) > 0.5
     }
 
-    /* ---------- the radar ---------- */
+    /* ---------- the rings ---------- */
     let ringsKey = ''
     function drawRings() {
       const ps = nodes.map((n) => pos.get(n.id)).filter(Boolean)
-      if (!ps.length) { rings.replaceChildren(); ringsKey = ''; placeRadar(); return }
-      // around the center agent; in the whole-graph view, around the middle of everyone, with spokes: a faint grid
+      if (!ps.length) { rings.replaceChildren(); ringsKey = ''; return }
       let cx = 0, cy = 0
       if (!center) { cx = ps.reduce((s, p) => s + p.x, 0) / ps.length; cy = ps.reduce((s, p) => s + p.y, 0) / ps.length }
       const reach = Math.max(120, ...ps.map((p) => Math.hypot(p.x - cx, p.y - cy))) + 50
@@ -228,45 +209,10 @@
         ringsKey = key
         rings.replaceChildren()
         for (let i = 1; i <= count; i++) el('circle', { class: 'ring', 'data-i': i }, rings)
-        if (!center) for (let i = 0; i < 12; i++) el('line', { class: 'spoke', 'data-i': i }, rings)
       }
       rings.setAttribute('transform', `translate(${cx},${cy})`)
       for (const c of rings.querySelectorAll('circle')) c.setAttribute('r', (outer * Number(c.dataset.i)) / count)
-      for (const l of rings.querySelectorAll('line')) {
-        const a = (Number(l.dataset.i) * Math.PI) / 6
-        l.setAttribute('x2', outer * Math.cos(a)); l.setAttribute('y2', outer * Math.sin(a))
-      }
-      sweepReach = outer
-      placeRadar()
     }
-    const sweepOn = () => !still() && !!center && pos.has(center)
-
-    /**
-     * Put the sweep disc on the center and each agent's glow on the agent (screen px), and time each glow to light as
-     * the beam passes it. Called when something moved; between those calls the compositor turns and fades on its own.
-     */
-    function placeRadar() {
-      const on = sweepOn()
-      sweepEl.style.display = on ? '' : 'none'
-      glowLayer.style.display = on ? '' : 'none'
-      if (!on) return
-      const r = sweepReach * zoom.k
-      sweepEl.style.width = sweepEl.style.height = `${2 * r}px`
-      sweepEl.style.left = `${zoom.x - r}px`
-      sweepEl.style.top = `${zoom.y - r}px`
-      const size = 2 * (R + 10) * zoom.k
-      for (const n of nodes) {
-        const g = nodeEls.get(n.id), p = pos.get(n.id)
-        if (!g || !p || n.id === center) continue
-        g.halo2.style.width = g.halo2.style.height = `${size}px`
-        g.halo2.style.transform = `translate(${zoom.x + p.x * zoom.k - size / 2}px, ${zoom.y + p.y * zoom.k - size / 2}px)`
-        // the disc's beam points up at rotate(0) and turns clockwise: it is over this agent when the turn is at
-        // (its angle + 90°) — so its glow's cycle starts then, on the same clock
-        const ang = (Math.atan2(p.y, p.x) * 180) / Math.PI
-        g.lit.startTime = ((((ang + 90) % 360) + 360) % 360 / 360) * SWEEP_MS
-      }
-    }
-
     /* ---------- a reminder travelling down its path ---------- */
     function launch(edgeId, ok, delay) {
       const g = edgeEls.get(edgeId)
@@ -390,7 +336,6 @@
       for (const [id, g] of nodeEls) {
         if (keep.has(id)) continue
         nodeEls.delete(id)
-        g.halo2.remove()
         if (still()) g.g.remove()
         else { g.g.classList.add('leaving'); setTimeout(() => g.g.remove(), 320) }
       }
@@ -400,7 +345,6 @@
         for (const c of [...g.g.classList]) if (c === 'center' || c.startsWith('status-')) g.g.classList.remove(c)
         g.g.classList.add('node', ...cls.split(' ').slice(1))
         g.label.textContent = n.label.length > 24 ? `${n.label.slice(0, 23)}…` : n.label
-        g.halo2.className = `glow status-${n.status ?? 'none'}`
         // trouble shows once: one shake when it turns red, not a red that keeps moving
         if (n.status === 'error' && old.has(n.id) && old.get(n.id).status !== 'error' && !still()) {
           g.body.classList.remove('shake')
@@ -439,9 +383,13 @@
         camera()
         return
       }
-      if (fresh.length || recentred) { alpha = 1; autoFit = true } else alpha = Math.max(alpha, 0.05)
+      // a new agent or a new center lays out again; a path added or gone settles in; a refresh that changed no path
+      // (a state, a count) moves nothing, so it draws once and asks for no frames
+      const pathsKey = edges.map((e) => e.id).sort().join('|')
+      if (fresh.length || recentred) { alpha = 1; autoFit = true } else if (pathsKey !== lastPathsKey) alpha = Math.max(alpha, 0.3)
+      lastPathsKey = pathsKey
       draw()
-      wake()
+      if (alpha > ALPHA_MIN || flights.length) wake()
     }
 
     function makeNode(n) {
@@ -457,12 +405,7 @@
       g.addEventListener('mouseleave', () => { setFocus(null); handlers.onHover?.(null) })
       g.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') handlers.onNodeClick?.(byId(n.id)) })
       dragNode(g, n.id)
-      // its glow, in the layer behind the svg: lit by the passing beam, then fading (a compositor animation)
-      const halo2 = document.createElement('div')
-      halo2.className = 'glow'
-      glowLayer.append(halo2)
-      const lit = halo2.animate([{ opacity: 0.5 }, { opacity: 0, offset: 0.22 }, { opacity: 0 }], { duration: SWEEP_MS, iterations: Infinity })
-      const made = { g, body, halo, label, halo2, lit }
+      const made = { g, body, halo, label }
       nodeEls.set(n.id, made)
       return made
     }
@@ -555,7 +498,6 @@
       for (const g of edgeEls.values()) { g.flying = 0; if (g.pending) { show(g, g.pending); g.pending = null } }
       settleNow()
       camera()
-      placeRadar()
     })
 
     /** What the floating cards leave of the stage ({ top, right, bottom, left }, px); the camera keeps to it. */
