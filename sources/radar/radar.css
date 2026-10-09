@@ -12,19 +12,19 @@ body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow
   #side { width: auto; border-left: 0; border-top: 1px solid var(--em-border); max-height: 40%; }
 }
 #empty { position: absolute; left: 0; right: 0; top: 62%; text-align: center; color: var(--em-foreground-muted); margin: 0; pointer-events: none; }
-#tip { position: absolute; pointer-events: none; background: var(--em-background-1); border: 1px solid var(--em-border); border-radius: var(--em-radius-control); padding: var(--em-spacing-xs) var(--em-spacing-sm); font-size: var(--em-font-caption); max-width: 240px; }
+#tip p { margin: 0 0 2px; }
+#tip { position: absolute; pointer-events: none; background: var(--em-background-1); border: 1px solid var(--em-border); border-radius: var(--em-radius-control); padding: var(--em-spacing-xs) var(--em-spacing-sm); font-size: var(--em-font-caption); max-width: 260px; }
 #legend { position: absolute; left: var(--em-spacing-sm); bottom: var(--em-spacing-sm); margin: 0; padding: 0; list-style: none; display: flex; gap: var(--em-spacing-sm); flex-wrap: wrap; font-size: var(--em-font-caption); color: var(--em-foreground-muted); }
 #legend li { display: flex; align-items: center; gap: 4px; }
 #legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: var(--node); }
 #legend .line { width: 18px; height: 0; border-top: 2px solid var(--em-foreground-muted); display: inline-block; }
-#legend .line.deliver { border-top-style: dashed; border-color: var(--em-foreground-info); }
 
 /* graph — only gugu's tokens */
 .status-working { --node: var(--em-foreground-info); }
 .status-needs_user { --node: var(--em-foreground-warning); }
 .status-idle { --node: var(--em-foreground-success); }
 .status-error { --node: var(--em-foreground-destructive); }
-.status-none { --node: var(--em-foreground-passive); }
+.status-none, .status-gone, .status-null { --node: var(--em-foreground-passive); }
 .node { cursor: pointer; }
 .node-dot { fill: var(--node); stroke: var(--em-background); stroke-width: 2; }
 .node-halo { fill: none; stroke: var(--em-accent-9); stroke-width: 2.5; }
@@ -32,12 +32,10 @@ body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow
 .node-label { fill: var(--em-foreground); font-size: var(--em-font-caption); paint-order: stroke; stroke: var(--em-background); stroke-width: 3px; }
 .node:focus-visible .node-dot { stroke: var(--em-accent-9); stroke-width: 3; }
 .edge-line { fill: none; stroke: var(--em-foreground-muted); stroke-width: 1.5; }
-.edge-deliver .edge-line { stroke: var(--em-foreground-info); stroke-dasharray: 5 4; }
 .edge-failed .edge-line { stroke: var(--em-foreground-destructive); }
 .edge-hit { fill: none; stroke: transparent; stroke-width: 12; cursor: pointer; }
-.edge-label { fill: var(--em-foreground-muted); font-size: 10px; paint-order: stroke; stroke: var(--em-background); stroke-width: 3px; }
-.arrowhead.edge-watch { fill: var(--em-foreground-muted); }
-.arrowhead.edge-deliver { fill: var(--em-foreground-info); }
+.edge-label { fill: var(--em-foreground); font-size: var(--em-font-caption); paint-order: stroke; stroke: var(--em-background); stroke-width: 3px; }
+.arrowhead.edge-path { fill: var(--em-foreground-muted); }
 .arrowhead.edge-failed { fill: var(--em-foreground-destructive); }
 .edge.pulse .edge-line { animation: radar-pulse 1.6s ease-out 2; }
 @keyframes radar-pulse { 0% { stroke-width: 6; opacity: 1; } 100% { stroke-width: 1.5; opacity: 1; } }

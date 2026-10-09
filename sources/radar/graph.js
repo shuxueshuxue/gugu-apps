@@ -1,9 +1,10 @@
 /**
  * 雷达 —— the subscription graph: a small force layout drawn in SVG, no library (the App may load nothing remote).
  *
- * RadarGraph.create(svg, { onNodeClick, onEdgeClick, onHover }) → { update(model), pulse(edgeIds), fit() }
- * model = { nodes: [{ id, label, status, detail, center }], edges: [{ id, source, target, kind: 'watch' | 'deliver',
- *           label, failed }] }
+ * RadarGraph.create(svg, { onNodeClick, onEdgeClick, onHover, onEdgeHover }) → { update(model), pulse(edgeIds), fit() }
+ * model = { nodes: [{ id, label, status, center }], edges: [{ id, source, target, label, failed }] }
+ * An edge is a path reminders travel on: from the agent they are about to the one they go to; `label` is how many
+ * went down it (empty for none).
  * Positions survive updates (a node keeps its place by id), so a status change repaints without the graph jumping.
  * Colours come only from gugu's theme tokens (--em-*), so light and dark follow by themselves.
  */
@@ -20,7 +21,7 @@
   function create(svg, handlers = {}) {
     svg.replaceChildren()
     const defs = el('defs', {}, svg)
-    for (const [id, cls] of [['arrow', 'edge-watch'], ['arrow-deliver', 'edge-deliver'], ['arrow-failed', 'edge-failed']]) {
+    for (const [id, cls] of [['arrow', 'edge-path'], ['arrow-failed', 'edge-failed']]) {
       const m = el('marker', { id, viewBox: '0 0 10 10', refX: 10, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, defs)
       el('path', { d: 'M0,0 L10,5 L0,10 z', class: `${cls} arrowhead` }, m)
     }
@@ -96,8 +97,8 @@
         if (!g || !a || !b) continue
         const dx = b.x - a.x, dy = b.y - a.y
         const d = Math.sqrt(dx * dx + dy * dy) || 1
-        // a slight bend, so a watch edge and a deliver edge between the same two agents do not overlap
-        const bend = e.kind === 'deliver' ? 26 : 10
+        // a slight bend to one side, so the paths A→B and B→A between the same two agents do not overlap
+        const bend = 14
         const mx = (a.x + b.x) / 2 - (dy / d) * bend, my = (a.y + b.y) / 2 + (dx / d) * bend
         const ex = b.x - ((b.x - mx) / Math.hypot(b.x - mx, b.y - my)) * (R + 3)
         const ey = b.y - ((b.y - my) / Math.hypot(b.x - mx, b.y - my)) * (R + 3)
@@ -133,12 +134,14 @@
       edgeLayer.replaceChildren()
       edgeEls = new Map()
       for (const e of edges) {
-        const g = el('g', { class: `edge ${e.kind === 'deliver' ? 'edge-deliver' : 'edge-watch'}${e.failed ? ' edge-failed' : ''}`, 'data-edge': e.id }, edgeLayer)
-        const line = el('path', { class: 'edge-line', 'marker-end': `url(#${e.failed ? 'arrow-failed' : e.kind === 'deliver' ? 'arrow-deliver' : 'arrow'})` }, g)
+        const g = el('g', { class: `edge${e.failed ? ' edge-failed' : ''}`, 'data-edge': e.id }, edgeLayer)
+        const line = el('path', { class: 'edge-line', 'marker-end': `url(#${e.failed ? 'arrow-failed' : 'arrow'})` }, g)
         const hit = el('path', { class: 'edge-hit' }, g)
         const text = el('text', { class: 'edge-label', 'text-anchor': 'middle' }, g)
         text.textContent = e.label
         hit.addEventListener('click', (ev) => { ev.stopPropagation(); handlers.onEdgeClick?.(e) })
+        hit.addEventListener('mouseenter', (ev) => handlers.onEdgeHover?.(e, ev))
+        hit.addEventListener('mouseleave', () => handlers.onEdgeHover?.(null))
         edgeEls.set(e.id, { g, line, hit, text })
       }
       nodeLayer.replaceChildren()

@@ -5,10 +5,10 @@
 // does the watching. Which agents are on this computer comes from agents.json, which the background page rewrites
 // whenever an agent moves: a target that is not in it is not here.
 import { createHash } from 'node:crypto'
-import { watchArgs, readJson, resolveAgent, listSubs, readSub, writeSub, removeSub, EVENTS, DEFAULT_EVENTS } from './store.js'
+import { watchArgs, readJson, resolveAgent, listSubs, readSub, writeSub, removeSub, LEVELS, DEFAULT_LEVEL } from './store.js'
 
 // One program serves every session (gugu starts one copy per App), so writes are taken one at a time here: two
-// watches of the same (who, whom, for whom) in flight together merge their events instead of the later one winning.
+// watches of the same (who, whom, for whom) in flight together do not overwrite each other half-way.
 let lane = Promise.resolve()
 const oneAtATime = (fn) => {
   const run = lane.then(fn, fn)
@@ -18,21 +18,21 @@ const oneAtATime = (fn) => {
 
 export const watch = {
   description:
-    'Be told when another agent on this computer changes state. events: failed (its turn ended in an error), gone (its ' +
-    'engine died, or the session was archived/deleted), stuck (working with no new tool call for stuck_minutes; only ' +
-    'for chat-panel agents that are open — a terminal agent cannot be judged stuck), waiting (it waits on a person: ' +
-    'approval, a question, a plan), done (its turn finished; the message carries its last words). Default: failed, ' +
-    'gone, stuck. Each event is sent once until the agent starts working again. Watching the same agent for the same ' +
-    'receiver again adds to that subscription instead of making a second one. The message arrives in the receiver\'s ' +
-    'session from 雷达; there is nothing to reply to, and the receiver can unwatch it. Agents on other computers cannot ' +
-    'be watched yet.',
+    'Be told when another agent on this computer needs attention. level says how much you want to hear: ' +
+    '"trouble" — when it stops with an error, when it is gone (its engine quit, or its task was archived or deleted), ' +
+    'or when it seems stuck (working, with no new tool call for stuck_minutes; judged only for chat-panel agents that ' +
+    'are open — a terminal agent is never called stuck); "needs_you" — all of that, and also when it waits for a person ' +
+    '(an approval, a question, a plan); "everything" — all of that, and also every time it finishes, with its last words. ' +
+    `Default "${DEFAULT_LEVEL}". Each thing is told once, until the agent starts working again. Asking again for the same ` +
+    'agent and the same receiver changes that one subscription. The message arrives in the receiver\'s session from ' +
+    '雷达; there is nothing to reply to, and the receiver can unwatch it. Agents on other computers cannot be watched yet.',
   inputSchema: {
     type: 'object',
     required: ['target'],
     properties: {
       target: { type: 'string', description: 'The agent to watch: session:<id>, aid:<id> or user:<uuid>.' },
-      events: { type: 'array', items: { type: 'string', enum: EVENTS }, description: `Default ${DEFAULT_EVENTS.join(', ')}.` },
-      stuck_minutes: { type: 'number', minimum: 1, description: 'For stuck: minutes without a new tool call. Default 30.' },
+      level: { type: 'string', enum: Object.keys(LEVELS), description: `How much to hear (see above). Default ${DEFAULT_LEVEL}.` },
+      stuck_minutes: { type: 'number', minimum: 1, description: 'How long without a new tool call counts as stuck. Default 30.' },
       to: { type: 'string', description: 'Who is told (session:<id>, aid:<id>, user:<uuid>). Default: you.' },
     },
   },
@@ -43,7 +43,7 @@ export const watch = {
 
 async function watchOnce(args, { agent }) {
   if (!agent) throw new Error('watch is for agents: gugu did not say which agent is calling')
-  const { target, events, stuckMinutes, to } = watchArgs(args)
+  const { target, level, stuckMinutes, to } = watchArgs(args)
   const snapshot = await readJson('agents.json', null)
   if (!snapshot) throw new Error("雷达's background page has not listed this computer's agents yet; is 雷达 enabled? Try again in a moment.")
   const watched = resolveAgent(snapshot, target)
@@ -64,17 +64,17 @@ async function watchOnce(args, { agent }) {
   const id = `w${createHash('sha256').update(`${agent}|${watched.agentId}|${receiver.agentId}`).digest('hex').slice(0, 16)}`
   const same = await readSub(id)
   if (same) {
-    same.events = [...new Set([...same.events, ...events])]
-    if (events.includes('stuck')) same.stuckMinutes = stuckMinutes
+    same.level = level
+    same.stuckMinutes = stuckMinutes
     await writeSub(same)
-    return { id, merged: true, watching: `${watched.title} (session:${watched.sessionId})`, events: same.events, told }
+    return { id, changed: true, watching: `${watched.title} (session:${watched.sessionId})`, level, told }
   }
   // Titles as they were at watch time: an archived session is gone from the list, and its subscription still has a name.
   await writeSub({
-    id, by: agent, target: watched.agentId, to: receiver.agentId, events, stuckMinutes, createdAt: new Date().toISOString(),
+    id, by: agent, target: watched.agentId, to: receiver.agentId, level, stuckMinutes, createdAt: new Date().toISOString(),
     titles: { by: titleOf(agent), target: watched.title, to: titleOf(receiver.agentId) },
   })
-  return { id, watching: `${watched.title} (session:${watched.sessionId})`, events, ...(events.includes('stuck') ? { stuck_minutes: stuckMinutes } : {}), told }
+  return { id, watching: `${watched.title} (session:${watched.sessionId})`, level, told }
 }
 
 export const unwatch = {
@@ -107,14 +107,14 @@ export const watching = {
       const a = snapshot.agents.find((row) => row.agentId === id)
       return a ? `${a.title} (session:${a.sessionId})` : `${saved ?? id} (no longer on this computer)`
     }
-    const row = (s) => ({ id: s.id, by: s.by === agent ? 'you' : name(s.by, s.titles?.by), target: name(s.target, s.titles?.target), to: s.to === agent ? 'you' : name(s.to, s.titles?.to), events: s.events })
+    const row = (s) => ({ id: s.id, by: s.by === agent ? 'you' : name(s.by, s.titles?.by), target: name(s.target, s.titles?.target), to: s.to === agent ? 'you' : name(s.to, s.titles?.to), level: s.level })
     const mine = all.filter((s) => s.by === agent)
     const toMe = all.filter((s) => s.to === agent && s.by !== agent)
     const ids = new Set([...mine, ...toMe].map((s) => s.id))
     return {
       mine: mine.map(row),
       sent_to_me: toMe.map(row),
-      watching_me: all.filter((s) => s.target === agent).map((s) => ({ id: s.id, by: name(s.by, s.titles?.by), events: s.events })),
+      watching_me: all.filter((s) => s.target === agent).map((s) => ({ id: s.id, by: name(s.by, s.titles?.by), level: s.level })),
       recent: (state.log ?? []).filter((e) => ids.has(e.sub)).slice(-10),
       background_checked_at: state.checkedAt ?? null,
     }

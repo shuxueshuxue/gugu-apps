@@ -8,12 +8,14 @@
  * 一件事只投一次:同一条订阅的同一件事,要等被盯的 agent 下一次开始干活(转成 working)才会再投。
  */
 
+import { wants } from './levels.js'
+
 const TICK_MS = 30_000
 const LOG_MAX = 200
 const ENDED_MAX = 50
 const g = window.gugu
 
-let state = { version: 2, checkedAt: null, last: {}, fired: {}, ended: [], log: [], error: null }
+let state = { version: 3, checkedAt: null, last: {}, fired: {}, ended: [], log: [], paths: {}, error: null }
 let agentsJson = ''
 let firstLook = true
 
@@ -23,7 +25,7 @@ async function load() {
   const raw = await g.readData('state.json')
   if (raw === null) return
   const saved = JSON.parse(raw)
-  if (saved.version !== 2) throw new Error(`state.json is version ${saved.version}; this build reads 2`)
+  if (saved.version !== 3) throw new Error(`state.json is version ${saved.version}; this build reads 3`)
   state = { ...state, ...saved }
 }
 
@@ -54,33 +56,35 @@ async function endSub(sub, why) {
 
 const WAITS = { approval: '批准一个操作', question: '回答一个问题', plan: '看一份计划', dialog: '处理一个对话框' }
 
-function name(row) {
-  return `${row.title}(session:${row.sessionId})`
+/** Why an agent is gone, in a person's words. */
+function goneWhy(row) {
+  if (!row.sessionId) return '这个任务被归档或删除了'
+  if (row.failure?.kind === 'start-failed') return '它没能启动起来'
+  if (row.failure) return '它的引擎意外退出了'
+  return '原因没读到'
 }
 
-/** What the agent said last, for a 「跑完了」: an MCP that went deaf still leaves its conclusion here. */
+/** What the agent said last, for 「做完了」: an MCP that went deaf still leaves its conclusion here. */
 async function lastWords(agentId) {
   try {
     const page = await g.readAgentHistory(agentId)
     const said = [...page.messages].reverse().find((m) => m.sender !== 'user' && m.text?.trim())
-    if (!said) return '\n(这一页里它没有说话。)'
+    if (!said) return '它这一轮没有说话。'
     const text = said.text.trim()
-    return `\n它最后说:\n${text.length > 1500 ? `${text.slice(0, 1500)}…(截断,全文在它的会话里)` : text}`
+    return `它最后说：\n${text.length > 1500 ? `${text.slice(0, 1500)}…（太长截断了，全文在它的任务里）` : text}`
   } catch (error) {
-    return `\n(读不到它最后说的话:${error?.message ?? error})`
+    return `（读不到它最后说的话：${error?.message ?? error}）`
   }
 }
 
+/** The reminder, in a person's words — the agent who gets it reads the same sentence a person would. */
 async function describe(event, row, sub, extra) {
-  if (event === 'failed') return `雷达:${name(row)} 这一轮出错停下了。`
-  if (event === 'gone') {
-    if (!row.sessionId) return `雷达:${row.title} 不在了(会话被归档或删除)。`
-    const why = row.failure ? `${row.failure.message}${row.failure.signal ? `(信号 ${row.failure.signal})` : ''}` : '原因没读到'
-    return `雷达:${name(row)} 的引擎没了:${why}。`
-  }
-  if (event === 'stuck') return `雷达:${name(row)} 还在 working,但已经 ${extra} 分钟没有新的工具调用了。`
-  if (event === 'waiting') return `雷达:${name(row)} 在等人${row.detail && WAITS[row.detail] ? `${WAITS[row.detail]}` : ''}。`
-  return `雷达:${name(row)} 这一轮跑完了。${await lastWords(row.agentId)}`
+  const who = row.title
+  if (event === 'failed') return `${who} 停下来报错了。`
+  if (event === 'gone') return `${who} 不在了：${goneWhy(row)}。`
+  if (event === 'stuck') return `${who} 好像卡住了：${extra} 分钟没有新动作。`
+  if (event === 'waiting') return `${who} 在等人${row.detail && WAITS[row.detail] ? WAITS[row.detail] : '处理'}。`
+  return `${who} 做完了。${await lastWords(row.agentId)}`
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -95,14 +99,23 @@ async function fire(sub, event, row, extra) {
   const fired = (state.fired[sub.id] ??= {})
   if (fired[event]) return
   fired[event] = true
-  const text = `${await describe(event, row, sub, extra)}\n(订阅 ${sub.id};这条不用回。不想再收:unwatch ${sub.id})`
+  const where = row.sessionId ? `它的任务 session:${row.sessionId}，` : ''
+  const text = `雷达提醒：${await describe(event, row, sub, extra)}\n（${where}这条不用回复。不想再收到：用 radar 的 unwatch，编号 ${sub.id}。）`
   const entry = { at: nowIso(), sub: sub.id, target: sub.target, targetTitle: row.title, event, to: sub.to, ok: false, error: null }
+  // A path is where reminders travel: from the agent they are about to the one they go to. Its count is kept (only the
+  // ones that arrived), all subscriptions on it together; its last failure stays until one arrives again.
+  const key = `${sub.target}>${sub.to}`
+  const path = (state.paths[key] ??= { sent: 0, lastAt: null, failed: null })
   try {
     await g.messageAgent(sub.to, text)
     entry.ok = true
+    path.sent += 1
+    path.lastAt = entry.at
+    path.failed = null
   } catch (error) {
     // 投不到要说出来:页签上标红,❌ 吞掉。
     entry.error = String(error?.message ?? error)
+    path.failed = { at: entry.at, error: entry.error }
   }
   state.log = [...state.log, entry].slice(-LOG_MAX)
 }
@@ -134,7 +147,7 @@ async function check() {
     if (!row) {
       // 不在清单里了:会话被归档或删除。这条订阅到此为止。
       const title = before?.title ?? sub.titles?.target ?? sub.target
-      if (sub.events.includes('gone')) await fire(sub, 'gone', { title, agentId: sub.target, sessionId: null })
+      if (wants(sub, 'gone')) await fire(sub, 'gone', { title, agentId: sub.target, sessionId: null })
       await endSub(sub, '被盯的会话不在了')
       continue
     }
@@ -143,16 +156,16 @@ async function check() {
         // 引擎死时,状态常比 failure 先到一步(连接先断、那一轮先按出错收尾):等一下再读一次这一行。
         if (!row.failure) row.failure = await failureSoon(row.agentId)
         // 引擎自己没了(failure 有值)算 gone;只订了 failed 的,照样告诉它出错了。
-        if (row.failure && sub.events.includes('gone')) await fire(sub, 'gone', row)
-        else if (sub.events.includes('failed')) await fire(sub, 'failed', row)
-      } else if (row.status === 'needs_user' && sub.events.includes('waiting')) {
+        if (row.failure && wants(sub, 'gone')) await fire(sub, 'gone', row)
+        else if (wants(sub, 'failed')) await fire(sub, 'failed', row)
+      } else if (row.status === 'needs_user' && wants(sub, 'waiting')) {
         await fire(sub, 'waiting', row)
-      } else if (before.status === 'working' && row.status === 'idle' && sub.events.includes('done')) {
+      } else if (before.status === 'working' && row.status === 'idle' && wants(sub, 'done')) {
         // 被打断(plain)不是跑完。细分问不到(null,或这一版咕咕不交这一格)时分不出来,只能按跑完算。
         if ((row.detail ?? null) !== 'plain') await fire(sub, 'done', row)
       }
     }
-    if (row.status === 'working' && sub.events.includes('stuck')) {
+    if (row.status === 'working' && wants(sub, 'stuck')) {
       // 只认「最后一次调工具」。拿不到(终端 agent、没打开的面板 agent:问不到,不是零)就不判卡住 ——
       // ❌ 拿 updatedAt 顶:那是排序键,一条一直在调工具的终端车道跑过阈值也会被报卡住。
       const since = Date.parse(row.lastActionAt ?? '')

@@ -3,36 +3,35 @@
 <head><meta charset="utf-8"><title>雷达</title><link rel="stylesheet" href="radar.css"></head>
 <body>
   <header id="bar">
-    <strong>雷达</strong>
+    <strong id="title">雷达</strong>
     <div role="tablist" id="modes">
       <button role="tab" id="mode-local" aria-selected="true">这个任务</button>
       <button role="tab" id="mode-all" aria-selected="false">全部</button>
     </div>
-    <label id="depth-box">深度 <select id="depth"><option>1</option><option>2</option><option>3</option></select></label>
+    <label id="depth-box"><span id="depth-label">看几层</span> <select id="depth"><option>1</option><option>2</option><option>3</option></select></label>
     <small id="checked" class="muted"></small>
-    <button id="refresh" aria-label="现在看一次"><gugu-icon name="refresh"></gugu-icon></button>
+    <button id="refresh" aria-label="↻"><gugu-icon name="refresh"></gugu-icon></button>
   </header>
   <p id="alert" role="alert" hidden></p>
   <div id="body">
     <div id="stage">
-      <svg id="graph" aria-label="订阅关系图"></svg>
+      <svg id="graph" aria-label="雷达"></svg>
       <p id="empty" role="status" hidden></p>
       <div id="tip" hidden></div>
       <ul id="legend">
-        <li><span class="dot status-working"></span>在干活</li>
-        <li><span class="dot status-needs_user"></span>等人</li>
-        <li><span class="dot status-idle"></span>空闲</li>
-        <li><span class="dot status-error"></span>出错</li>
-        <li><span class="line watch"></span>盯着</li>
-        <li><span class="line deliver"></span>投给</li>
+        <li><span class="dot status-working"></span><span id="l-working"></span></li>
+        <li><span class="dot status-needs_user"></span><span id="l-waiting"></span></li>
+        <li><span class="dot status-idle"></span><span id="l-idle"></span></li>
+        <li><span class="dot status-error"></span><span id="l-trouble"></span></li>
+        <li><span class="line"></span><span id="l-path"></span></li>
       </ul>
     </div>
     <aside id="side">
       <section id="detail" class="stack" hidden></section>
-      <section class="stack"><h5>最近投递</h5><div id="log"></div></section>
+      <section class="stack"><h5 id="recent">最近的提醒</h5><div id="log"></div></section>
     </aside>
   </div>
   <script src="graph.js"></script>
-  <script src="radar.js"></script>
+  <script type="module" src="radar.js"></script>
 </body>
 </html>

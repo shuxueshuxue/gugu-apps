@@ -2,8 +2,8 @@
 import { readFile, writeFile, rename, readdir, mkdir, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
-export const EVENTS = ['failed', 'gone', 'stuck', 'waiting', 'done']
-export const DEFAULT_EVENTS = ['failed', 'gone', 'stuck']
+import { LEVELS, DEFAULT_LEVEL } from './levels.js'
+export { LEVELS, DEFAULT_LEVEL }
 
 const dir = () => {
   const d = process.env.GUGU_EXTENSION_DATA_DIR
@@ -92,12 +92,11 @@ export function resolveAgent(snapshot, address) {
 export function watchArgs(args) {
   const target = String(args.target ?? '').trim()
   if (!/^(session|aid|user):\S+$/.test(target)) throw new Error('target is session:<id>, aid:<id> or user:<uuid>')
-  const events = args.events === undefined ? DEFAULT_EVENTS : args.events
-  if (!Array.isArray(events) || events.length === 0) throw new Error(`events is a list of: ${EVENTS.join(', ')}`)
-  const unknown = events.filter((e) => !EVENTS.includes(e))
-  if (unknown.length) throw new Error(`unknown event ${unknown.join(', ')}; events are: ${EVENTS.join(', ')}`)
+  if (args.events !== undefined) throw new Error('there is no events argument: say how much to hear with level (trouble, needs_you, everything)')
+  const level = args.level === undefined ? DEFAULT_LEVEL : String(args.level)
+  if (!LEVELS[level]) throw new Error(`level is one of: ${Object.keys(LEVELS).join(', ')}`)
   const stuckMinutes = args.stuck_minutes === undefined ? 30 : Number(args.stuck_minutes)
   if (!Number.isFinite(stuckMinutes) || stuckMinutes < 1) throw new Error('stuck_minutes is a number of minutes, at least 1')
   const to = args.to === undefined ? null : String(args.to).trim()
-  return { target, events: [...new Set(events)], stuckMinutes, to }
+  return { target, level, stuckMinutes, to }
 }
