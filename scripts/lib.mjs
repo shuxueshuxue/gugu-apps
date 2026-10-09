@@ -42,7 +42,10 @@ function exactKeys(object, keys, where) {
 /** 一个 App 的记录。形状不对就抛,并说清是哪一处。 */
 export function validateApp(app, fileName) {
   const where = fileName;
-  exactKeys(app, ['id', 'unlisted', 'deprecated', 'versions'], where);
+  // featured(官方精选,市场页顶上那一张)可写可不写;写了只能是 true / false。
+  const { featured, ...rest } = app;
+  exactKeys(rest, ['id', 'unlisted', 'deprecated', 'versions'], where);
+  if (featured !== undefined && typeof featured !== 'boolean') fail(`${where}: featured 是 true / false`);
   if (!APP_ID.test(app.id)) fail(`${where}: id 只能是小写字母、数字、连字符`);
   if (fileName && fileName !== `${app.id}.json`) fail(`${where}: 文件名必须是 ${app.id}.json`);
   if (typeof app.unlisted !== 'boolean') fail(`${where}: unlisted 是 true / false`);

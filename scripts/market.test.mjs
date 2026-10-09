@@ -195,6 +195,25 @@ test('sync:写齐包 / 图标 / README 与图 / meta / index;重跑除 index 外
   writeIndex(app);
 });
 
+test('sync:标了 featured 的在 index 里带 featured: true;没标 / 标 false 的不写这一键;写成别的值报红', async () => {
+  const appsDir = join(index, 'apps');
+  const oss = new FakeOss();
+  const quiet = () => {};
+  const app = JSON.parse(readFileSync(join(appsDir, 'probe.json'), 'utf8'));
+  try {
+    writeIndex({ ...app, featured: true });
+    assert.equal((await sync({ client: oss, dir: appsDir, log: quiet })).apps[0].featured, true);
+    writeIndex({ ...app, featured: false });
+    assert.equal('featured' in (await sync({ client: oss, dir: appsDir, log: quiet })).apps[0], false);
+    writeIndex(app);
+    assert.equal('featured' in (await sync({ client: oss, dir: appsDir, log: quiet })).apps[0], false);
+    writeIndex({ ...app, featured: 'yes' });
+    await assert.rejects(sync({ client: oss, dir: appsDir, log: quiet }), /featured 是 true \/ false/);
+  } finally {
+    writeIndex(app);
+  }
+});
+
 test('sync:下载站上同名文件字节不同 → 报红,❌ 覆盖', async () => {
   const oss = new FakeOss();
   const key = `market/bundles/probe/0.1.0-${v1.sha256}.zip`;
