@@ -1,0 +1,16 @@
+{
+  "id": "radar",
+  "unlisted": true,
+  "deprecated": null,
+  "versions": [
+    {
+      "version": "0.1.0",
+      "repo": "shuxueshuxue/gugu-apps",
+      "path": "sources/radar",
+      "commit": "26abf6bf25b7845f11ab6b240d4aad1397de34e6",
+      "sha256": "46999f01eb5a227ea89423b79b9c6f4e78ee619e4aafdf337569bcfbc85a5881",
+      "bytes": 48388,
+      "yanked": null
+    }
+  ]
+}
