@@ -1,50 +1,111 @@
-body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+/* 雷达's tab. Only gugu's tokens (--em-*), so light and dark follow by themselves. */
+body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: var(--em-background); }
 [hidden] { display: none; }
-#bar { display: flex; align-items: center; gap: var(--em-spacing-sm); padding: var(--em-spacing-sm) var(--em-spacing-md); border-bottom: 1px solid var(--em-border); flex-wrap: wrap; }
-#bar #refresh { margin-left: auto; }
-#alert { margin: 0; padding: var(--em-spacing-xs) var(--em-spacing-md); }
-#body { flex: 1; display: flex; min-height: 0; }
-#stage { flex: 1; position: relative; min-width: 0; }
-#graph { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
-#side { width: 280px; border-left: 1px solid var(--em-border); overflow-y: auto; padding: var(--em-spacing-md); display: flex; flex-direction: column; gap: var(--em-spacing-lg); }
-@media (max-width: 640px) {
-  #body { flex-direction: column; }
-  #side { width: auto; border-left: 0; border-top: 1px solid var(--em-border); max-height: 40%; }
-}
-#empty { position: absolute; left: 0; right: 0; top: 62%; text-align: center; color: var(--em-foreground-muted); margin: 0; pointer-events: none; }
-#tip p { margin: 0 0 2px; }
-#tip { position: absolute; pointer-events: none; background: var(--em-background-1); border: 1px solid var(--em-border); border-radius: var(--em-radius-control); padding: var(--em-spacing-xs) var(--em-spacing-sm); font-size: var(--em-font-caption); max-width: 260px; }
-#legend { position: absolute; left: var(--em-spacing-sm); bottom: var(--em-spacing-sm); margin: 0; padding: 0; list-style: none; display: flex; gap: var(--em-spacing-sm); flex-wrap: wrap; font-size: var(--em-font-caption); color: var(--em-foreground-muted); }
-#legend li { display: flex; align-items: center; gap: 4px; }
-#legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: var(--node); }
-#legend .line { width: 18px; height: 0; border-top: 2px solid var(--em-foreground-muted); display: inline-block; }
 
-/* graph — only gugu's tokens */
+#bar { display: flex; align-items: center; gap: var(--em-spacing-md); padding: var(--em-spacing-sm) var(--em-spacing-lg); border-bottom: 1px solid var(--em-border); flex-wrap: wrap; }
+#depth-box { display: flex; align-items: center; gap: var(--em-spacing-xs); color: var(--em-foreground-muted); }
+#depth-box select { width: auto; }
+#alert { margin: 0; padding: var(--em-spacing-xs) var(--em-spacing-lg); }
+
+/* the graph is the page; everything else floats on it */
+#stage { flex: 1; position: relative; min-height: 0; overflow: hidden; }
+#graph { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+#graph:active { cursor: grabbing; }
+#graph, #legend { user-select: none; -webkit-user-select: none; }
+
+.glass { position: absolute; isolation: isolate; border: 1px solid var(--em-border); border-radius: var(--em-radius-xl); backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); }
+.glass::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--em-background-1); opacity: 0.84; }
+
+#side { top: var(--em-spacing-lg); right: var(--em-spacing-lg); width: 300px; max-height: calc(100% - 2 * var(--em-spacing-lg)); overflow-y: auto; padding: var(--em-spacing-md) var(--em-spacing-lg); display: flex; flex-direction: column; gap: var(--em-spacing-lg); box-sizing: border-box; }
+#side-head { display: flex; align-items: center; justify-content: space-between; gap: var(--em-spacing-sm); }
+#side h5 { margin: 0; }
+#side .list li { padding-left: 0; padding-right: 0; }
+#legend { left: var(--em-spacing-lg); bottom: var(--em-spacing-lg); margin: 0; padding: var(--em-spacing-xs) var(--em-spacing-md); list-style: none; display: flex; gap: var(--em-spacing-xs) var(--em-spacing-md); flex-wrap: wrap; max-width: calc(100% - 300px - 4 * var(--em-spacing-lg)); font-size: var(--em-font-caption); color: var(--em-foreground-muted); }
+#legend li { display: flex; align-items: center; gap: 6px; }
+#legend .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: var(--node); }
+#legend .line { width: 18px; height: 0; border-top: 1.5px solid var(--em-foreground-muted); display: inline-block; }
+#tip { z-index: 2; pointer-events: none; padding: var(--em-spacing-sm) var(--em-spacing-md); font-size: var(--em-font-caption); line-height: var(--em-lh-caption, 1.5); max-width: 280px; }
+#tip p { margin: 0 0 2px; }
+#empty { position: absolute; left: 0; right: 0; top: 64%; text-align: center; color: var(--em-foreground-muted); margin: 0; pointer-events: none; }
+@media (max-width: 640px) {
+  #side { top: auto; left: var(--em-spacing-md); right: var(--em-spacing-md); bottom: var(--em-spacing-md); width: auto; max-height: 42%; }
+  #legend { left: var(--em-spacing-md); top: var(--em-spacing-md); bottom: auto; max-width: calc(100% - 2 * var(--em-spacing-md)); }
+}
+
+.failed { color: var(--em-foreground-destructive); }
+a.button { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.sentence { margin: 0; white-space: normal; flex: 1; }
+
+/* ---------- the radar behind the graph ---------- */
+.ring, .spoke { fill: none; stroke: var(--em-border-1); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.ring { opacity: 0.9; }
+.spoke { opacity: 0.6; stroke-dasharray: 2 5; }
+.sweep-slice { fill: var(--em-foreground-success); }
+.sweep-beam { stroke: var(--em-foreground-success); stroke-width: 1.5; opacity: 0.55; vector-effect: non-scaling-stroke; }
+
+/* ---------- agents ---------- */
 .status-working { --node: var(--em-foreground-info); }
 .status-needs_user { --node: var(--em-foreground-warning); }
 .status-idle { --node: var(--em-foreground-success); }
 .status-error { --node: var(--em-foreground-destructive); }
 .status-none, .status-gone, .status-null { --node: var(--em-foreground-passive); }
-.node { cursor: pointer; }
-.node-dot { fill: var(--node); stroke: var(--em-background); stroke-width: 2; }
-.node-halo { fill: none; stroke: var(--em-accent-9); stroke-width: 2.5; }
-.node.center .node-dot { stroke: var(--em-accent-9); }
-.node-label { fill: var(--em-foreground); font-size: var(--em-font-caption); paint-order: stroke; stroke: var(--em-background); stroke-width: 3px; }
+.node { cursor: pointer; transition: opacity 0.22s ease; }
+.node-dot { fill: var(--node); stroke: var(--em-background); stroke-width: 2.5; transition: fill 0.4s ease; }
+.node-glow { fill: var(--node); pointer-events: none; }
+.node-halo { fill: none; stroke: var(--em-accent-9); stroke-width: 2; display: none; }
+.node.center .node-halo { display: inline; }
+.node-label { fill: var(--em-foreground); font-size: var(--em-font-caption); paint-order: stroke; stroke: var(--em-background); stroke-width: 3.5px; stroke-linejoin: round; }
 .node:focus-visible .node-dot { stroke: var(--em-accent-9); stroke-width: 3; }
-.edge-line { fill: none; stroke: var(--em-foreground-muted); stroke-width: 1.5; }
-.edge-failed .edge-line { stroke: var(--em-foreground-destructive); }
-.edge-hit { fill: none; stroke: transparent; stroke-width: 12; cursor: pointer; }
-.edge-badge rect { fill: var(--em-background); stroke: var(--em-foreground-muted); stroke-width: 1; }
+.node-aura, .node-ping { fill: none; stroke: var(--node); display: none; transform-box: fill-box; transform-origin: center; pointer-events: none; }
+/* working: a ring that breathes */
+.status-working .node-aura { display: inline; stroke-width: 3; animation: radar-breathe 2.4s ease-in-out infinite; }
+/* waiting for someone: a slow pulse going out */
+.status-needs_user .node-ping { display: inline; stroke-width: 2; animation: radar-ping 2.8s ease-out infinite; }
+/* idle: quiet, a little faded */
+.status-idle .node-dot { fill-opacity: 0.72; }
+.status-idle .node-label { fill: var(--em-foreground-muted); }
+/* gone: see-through, a dashed edge */
+.status-gone { opacity: 0.55; }
+.status-gone .node-dot { fill-opacity: 0.18; stroke: var(--em-foreground-passive); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.status-gone .node-label { fill: var(--em-foreground-passive); }
+/* trouble: red, and one shake when it turns */
+.node-body.shake { animation: radar-shake 0.5s ease-in-out 1; }
+.node-body.entering { animation: radar-fade-in 0.5s ease-out 1; }
+.node-body.entering .node-dot { transform-box: fill-box; transform-origin: center; animation: radar-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 1; }
+.node.leaving { opacity: 0; pointer-events: none; }
+
+/* ---------- paths ---------- */
+.edge { transition: opacity 0.22s ease; }
+.edge-line { fill: none; stroke: var(--em-foreground-muted); stroke-width: 1.5; stroke-opacity: 0.75; transition: stroke 0.3s ease, stroke-width 0.2s ease; }
+.edge-failed .edge-line { stroke: var(--em-foreground-destructive); stroke-opacity: 1; }
+.edge-hit { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
+.edge-badge rect { fill: var(--em-background-1); stroke: var(--em-border-1); stroke-width: 1; }
 .edge-badge text { fill: var(--em-foreground); font-size: 11px; font-weight: 600; }
 .edge-failed .edge-badge rect { stroke: var(--em-foreground-destructive); }
 .edge-failed .edge-badge text { fill: var(--em-foreground-destructive); }
+.edge-badge-hop { transform-box: fill-box; transform-origin: center; }
+.edge-badge-hop.hop { animation: radar-hop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 1; }
 .arrowhead.edge-path { fill: var(--em-foreground-muted); }
 .arrowhead.edge-failed { fill: var(--em-foreground-destructive); }
-.edge.pulse .edge-line { animation: radar-pulse 1.6s ease-out 2; }
-@keyframes radar-pulse { 0% { stroke-width: 6; opacity: 1; } 100% { stroke-width: 1.5; opacity: 1; } }
 .edge.selected .edge-line { stroke-width: 3; }
-.failed { color: var(--em-foreground-destructive); }
-#depth-box { display: flex; align-items: center; gap: 4px; }
-#depth-box select { width: auto; }
-a.button { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
-.sentence { margin: 0; white-space: normal; flex: 1; }
+.flight { fill: var(--em-foreground-info); stroke: var(--em-background); stroke-width: 1.5; }
+.flight-failed { fill: var(--em-foreground-destructive); }
+
+/* ---------- focus: the pointer's neighbourhood stays, the rest steps back ---------- */
+#graph.focusing .node:not(.lit) { opacity: 0.14; }
+#graph.focusing .edge:not(.lit) { opacity: 0.06; }
+#graph.focusing .edge.lit .edge-line { stroke-width: 2.5; stroke-opacity: 1; }
+
+@keyframes radar-breathe { 0%, 100% { transform: scale(0.92); opacity: 0.18; } 50% { transform: scale(1.3); opacity: 0.55; } }
+@keyframes radar-ping { 0% { transform: scale(1); opacity: 0.75; } 80%, 100% { transform: scale(2.4); opacity: 0; } }
+@keyframes radar-shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-5px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
+@keyframes radar-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes radar-pop { from { transform: scale(0.3); } to { transform: scale(1); } }
+@keyframes radar-hop { 0% { transform: scale(1); } 40% { transform: scale(1.7); } 100% { transform: scale(1); } }
+
+/* 减少动态效果: the same picture, standing still */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before { animation: none !important; transition: none !important; }
+  .status-working .node-aura { opacity: 0.35; transform: scale(1.15); }
+  .status-needs_user .node-ping { opacity: 0.5; transform: scale(1.5); }
+}

@@ -43,6 +43,8 @@ const graph = window.RadarGraph.create($('graph'), {
   onHover: (n, ev) => showTip(n ? [nodeSentence(n.id)] : null, ev),
   onEdgeHover: (e, ev) => showTip(e ? pathSentences(e) : null, ev),
 })
+// the frame readings, for the performance check from outside (CDP)
+window.radarFrames = () => graph.stats()
 
 let saved = new Map() // agentId -> its title when it was watched (an archived one is no longer listed)
 const titleOf = (agentId) => agents.get(agentId)?.title ?? saved.get(agentId) ?? agentId
@@ -142,6 +144,16 @@ function model() {
     return { id, label: titleOf(id), status: row ? row.status : 'gone', center: id === center }
   })
   return { nodes, edges }
+}
+
+/** What the floating cards leave of the stage for the graph: they sit at the right and bottom, or (narrow) at the bottom and top. */
+function freeArea() {
+  const stage = $('stage').getBoundingClientRect(), side = $('side').getBoundingClientRect(), legend = $('legend').getBoundingClientRect()
+  const gap = 8
+  if (window.matchMedia('(max-width: 640px)').matches) {
+    return { top: legend.bottom - stage.top + gap, right: 0, bottom: stage.bottom - side.top + gap, left: 0 }
+  }
+  return { top: 0, right: stage.right - side.left + gap, bottom: stage.bottom - legend.top + gap, left: 0 }
 }
 
 function showTip(lines, ev) {
@@ -256,7 +268,11 @@ function renderWords() {
 function render() {
   renderBar()
   const m = model()
-  graph.update(m)
+  // reminders that went out since the last picture travel down their paths (each one once)
+  // (only once the log is read: a picture drawn before it must not make the whole log look new)
+  const fresh = state && lastPulseAt !== null ? state.log.filter((e) => e.at > lastPulseAt) : []
+  if (state) lastPulseAt = state.log.at(-1)?.at ?? ''
+  graph.update({ ...m, deliveries: fresh.map((e) => ({ edgeId: `p:${e.target}>${e.to}`, ok: e.ok })) })
   const center = centerId()
   const empty = $('empty')
   if (center && m.edges.length === 0 && m.nodes.length <= 1) {
@@ -267,10 +283,6 @@ function render() {
     empty.hidden = false
   } else empty.hidden = true
   renderSide()
-  // a path that just carried a reminder flashes
-  const fresh = (state?.log ?? []).filter((e) => e.ok && lastPulseAt !== null && e.at > lastPulseAt)
-  if (fresh.length) graph.pulse(fresh.map((e) => `p:${e.target}>${e.to}`))
-  lastPulseAt = state?.log?.at(-1)?.at ?? lastPulseAt ?? ''
 }
 
 async function refresh() {
@@ -286,9 +298,9 @@ async function refresh() {
 $('refresh').addEventListener('click', () => {
   g.sendToBackground({ type: 'check' }).catch((error) => g.reportError(W.couldNot(W.title, error?.message ?? error)))
 })
-$('mode-local').addEventListener('click', () => { mode = 'local'; selected = null; render(); setTimeout(() => graph.fit(), 600) })
-$('mode-all').addEventListener('click', () => { mode = 'all'; selected = null; render(); setTimeout(() => graph.fit(), 600) })
-$('depth').addEventListener('change', (ev) => { depth = Number(ev.target.value); render(); setTimeout(() => graph.fit(), 600) })
+$('mode-local').addEventListener('click', () => { mode = 'local'; selected = null; render(); graph.fit() })
+$('mode-all').addEventListener('click', () => { mode = 'all'; selected = null; render(); graph.fit() })
+$('depth').addEventListener('change', (ev) => { depth = Number(ev.target.value); render(); graph.fit() })
 $('graph').addEventListener('click', (ev) => { if (ev.target === $('graph')) { selected = null; renderSide() } })
 
 g.onBackgroundMessage((message) => {
@@ -307,8 +319,10 @@ g.onContextChanged((next) => {
   W = wordsFor(ctx?.locale)
   renderWords()
   mode = ctx?.session?.agentId ? 'local' : 'all'
+  renderBar()
+  graph.setFree(freeArea()) // before the first picture, so it opens in the space the cards leave
   await refresh()
-  setTimeout(() => graph.fit(), 800)
-  new ResizeObserver(() => graph.fit()).observe($('graph'))
+  const resized = new ResizeObserver(() => graph.setFree(freeArea()))
+  for (const id of ['graph', 'side', 'legend']) resized.observe($(id))
   setInterval(renderBar, 30_000)
 })()
