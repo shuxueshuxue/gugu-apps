@@ -44,3 +44,4 @@ body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow
 #depth-box { display: flex; align-items: center; gap: 4px; }
 #depth-box select { width: auto; }
 a.button { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.sentence { margin: 0; white-space: normal; flex: 1; }

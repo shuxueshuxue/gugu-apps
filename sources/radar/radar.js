@@ -34,7 +34,7 @@ const WORDS = {
     watchFor: (by, to, target, when) => `${by} 让 ${to} 在 ${target}${when}收到提醒。`,
     sentTimes: (n, ago) => `已提醒 ${n} 次，最近一次${ago}。`, sentNever: '还没提醒过。',
     lastFailed: (why) => `上一次没送到：${why}。`,
-    includes: '具体包括：',
+    includes: '具体包括：', listSep: '、', end: '。',
     events: { failed: '停下来报错', gone: '不在了（引擎退出、任务被归档或删除）', stuck: (m) => `很久没动静（${m} 分钟没有新动作）`, waiting: '在等人批准或回答', done: '做完一轮' },
     eventDone: { failed: '停下来报错了', gone: '不在了', stuck: '好像卡住了', waiting: '在等人', done: '做完了' },
     notHere: '收提醒的那个任务已经不在这台电脑上了',
@@ -60,7 +60,7 @@ const WORDS = {
     watchFor: (by, to, target, when) => `${by} has ${to} told when ${target} ${when}.`,
     sentTimes: (n, ago) => `Told ${n} time${n === 1 ? '' : 's'}, last ${ago}.`, sentNever: 'Not told yet.',
     lastFailed: (why) => `The last one did not arrive: ${why}.`,
-    includes: 'That covers: ',
+    includes: 'That covers: ', listSep: ', ', end: '.',
     events: { failed: 'stopping with an error', gone: 'being gone (its engine quit, or its task was archived or deleted)', stuck: (m) => `going quiet (nothing new for ${m} minutes)`, waiting: 'waiting for someone to approve or answer', done: 'finishing a round' },
     eventDone: { failed: 'stopped with an error', gone: 'is gone', stuck: 'seems stuck', waiting: 'is waiting', done: 'finished' },
     notHere: 'the task to tell is no longer on this computer',
@@ -165,7 +165,7 @@ function pathSentences(path) {
 
 function includesLine(sub) {
   const events = LEVELS[sub.level] ?? LEVELS.trouble
-  return W.includes + events.map((e) => (e === 'stuck' ? W.events.stuck(sub.stuckMinutes) : W.events[e])).join('、')
+  return W.includes + events.map((e) => (e === 'stuck' ? W.events.stuck(sub.stuckMinutes) : W.events[e])).join(W.listSep) + W.end
 }
 
 /* ---------- the graph ---------- */
@@ -225,7 +225,7 @@ function subLine(sub) {
   const sentence = sub.by === sub.to
     ? W.watchSelf(titleOf(sub.to), titleOf(sub.target), when)
     : W.watchFor(titleOf(sub.by), titleOf(sub.to), titleOf(sub.target), when)
-  return h('li', {}, h('div', {}, h('span', {}, sentence)), h('button', { onclick: () => void unwatch(sub.id) }, W.stop))
+  return h('li', {}, h('p', { class: 'sentence' }, sentence), h('button', { onclick: () => void unwatch(sub.id) }, W.stop))
 }
 
 function logList(entries) {
@@ -270,7 +270,7 @@ function renderSide() {
       ? [
           h('h5', {}, W.remind(titleOf(path.source), titleOf(path.target))),
           ...pathSentences(path).slice(path.subs.length).map((line) => h('p', {}, line)),
-          h('ul', { class: 'list' }, path.subs.map((sub) => [subLine(sub), h('li', { class: 'muted' }, includesLine(sub))]).flat()),
+          h('ul', { class: 'list' }, path.subs.map((sub) => [subLine(sub), h('li', {}, h('p', { class: 'sentence muted' }, includesLine(sub)))]).flat()),
         ]
       : []))
     shownLog = path ? log.filter((e) => e.target === path.source && e.to === path.target) : []
