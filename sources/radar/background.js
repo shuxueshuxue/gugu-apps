@@ -120,6 +120,11 @@ async function fire(sub, event, row, extra) {
   state.log = [...state.log, entry].slice(-LOG_MAX)
 }
 
+/** When this agent started its current stretch of work, as far as 雷达 saw it (the first look counts as the start). */
+function workingSince(row, before) {
+  return before?.status === 'working' && before.workingSince ? before.workingSince : nowIso()
+}
+
 /** One look at every agent here: what moved since the last look, against every subscription. */
 async function check() {
   const list = await g.listAgents()
@@ -168,13 +173,18 @@ async function check() {
     if (row.status === 'working' && wants(sub, 'stuck')) {
       // 只认「最后一次调工具」。拿不到(终端 agent、没打开的面板 agent:问不到,不是零)就不判卡住 ——
       // ❌ 拿 updatedAt 顶:那是排序键,一条一直在调工具的终端车道跑过阈值也会被报卡住。
-      const since = Date.parse(row.lastActionAt ?? '')
+      // 上一轮最后那次调工具会一直留着:从「这次开始干活」和「最后一次调工具」里取晚的那个算起,刚开工的一轮不算卡住。
+      const action = Date.parse(row.lastActionAt ?? '')
+      const since = Math.max(action, Date.parse(workingSince(row, before)))
       const minutes = Math.floor((now - since) / 60_000)
-      if (Number.isFinite(since) && minutes >= sub.stuckMinutes) await fire(sub, 'stuck', row, minutes)
+      if (Number.isFinite(action) && minutes >= sub.stuckMinutes) await fire(sub, 'stuck', row, minutes)
     }
   }
 
-  state.last = Object.fromEntries(list.map((row) => [row.agentId, { status: row.status, detail: row.detail ?? null, title: row.title }]))
+  state.last = Object.fromEntries(list.map((row) => [row.agentId, {
+    status: row.status, detail: row.detail ?? null, title: row.title,
+    workingSince: row.status === 'working' ? workingSince(row, state.last[row.agentId]) : null,
+  }]))
   for (const id of Object.keys(state.fired)) if (!subs[id]) delete state.fired[id]
   firstLook = false
   state.checkedAt = nowIso()
