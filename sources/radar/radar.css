@@ -31,7 +31,7 @@ body {
 #legend .line { width: 18px; height: 0; border-top: 1.5px solid var(--em-foreground-muted); display: inline-block; }
 #tip { position: absolute; z-index: 2; pointer-events: none; padding: var(--em-spacing-sm) var(--em-spacing-md); border: 1px solid var(--em-border); border-radius: var(--em-radius-xl); background: var(--em-background-1); font-size: var(--em-font-caption); line-height: var(--em-lh-caption, 1.5); max-width: 280px; }
 #tip p { margin: 0 0 2px; }
-#empty { position: absolute; left: 0; right: 0; top: 64%; text-align: center; color: var(--em-foreground-muted); margin: 0; pointer-events: none; }
+#empty { position: absolute; left: 0; right: 0; top: 64%; text-align: center; color: var(--em-foreground-muted); margin: 0; pointer-events: none; background: none; }
 @media (max-width: 720px) {
   body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; }
   #side { grid-area: 4 / 1; max-height: 40vh; border-left: 0; border-top: 1px solid var(--em-border); }
