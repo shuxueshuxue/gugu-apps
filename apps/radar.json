@@ -1,6 +1,7 @@
 {
   "id": "radar",
-  "unlisted": true,
+  "unlisted": false,
+  "featured": true,
   "deprecated": null,
   "versions": [
     {
