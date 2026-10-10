@@ -13,8 +13,8 @@ const $ = (id) => document.getElementById(id)
 
 let W = WORDS.zh
 const agoOf = (iso) => (iso ? W.ago(Math.max(0, (Date.now() - Date.parse(iso)) / 1000)) : null)
-/** A failed delivery's reason, for a person. */
-const whyNot = (error) => (/not an agent this App reaches/.test(error ?? '') ? W.notHere : error)
+/** A failed delivery's reason, for a person: by gugu's code; one kept without a code, as it was kept. */
+const whyNot = (error, code) => (code === 'denied' ? W.noPermission : code === 'not-found' ? W.notHere : error)
 
 let ctx = null
 let mode = 'local'
@@ -106,7 +106,7 @@ function pathSentences(path) {
       : W.watchFor(titleOf(sub.by), titleOf(sub.to), titleOf(sub.target), when)
   })
   lines.push(path.sent > 0 ? W.sentTimes(path.sent, agoOf(path.lastAt)) : W.sentNever)
-  if (path.failed) lines.push(W.lastFailed(whyNot(path.failed.error)))
+  if (path.failed) lines.push(W.lastFailed(whyNot(path.failed.error, path.failed.code)))
   return lines
 }
 
@@ -181,7 +181,7 @@ function logList(entries) {
     h('li', {},
       h('div', {},
         h('strong', {}, W.logLine(e.targetTitle, W.eventDone[e.event] ?? '', titleOf(e.to))),
-        e.ok ? null : h('small', { class: 'failed' }, W.notArrived(whyNot(e.error)))),
+        e.ok ? null : h('small', { class: 'failed' }, W.notArrived(whyNot(e.error, e.code)))),
       h('gugu-time', { datetime: e.at }))))
 }
 

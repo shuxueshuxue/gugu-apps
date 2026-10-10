@@ -24,7 +24,7 @@ body {
 #side h5 { margin: 0; }
 #side .list li { padding-left: 0; padding-right: 0; }
 /* a reminder's whole sentence, wrapped, never cut */
-#log .list li > div > * { white-space: normal; }
+#log .list li > div > * { white-space: normal; word-break: keep-all; overflow-wrap: anywhere; }
 #legend { margin: 0; padding: var(--em-spacing-sm) var(--em-spacing-lg); list-style: none; display: flex; flex-wrap: wrap; gap: var(--em-spacing-xs) var(--em-spacing-md); font-size: var(--em-font-caption); color: var(--em-foreground-muted); }
 #legend li { display: flex; align-items: center; gap: 6px; margin: 0; }
 #legend .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: var(--node); }
@@ -54,7 +54,7 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 .node-dot { fill: var(--node); stroke: var(--em-background); stroke-width: 2.5; transition: fill 0.4s ease; }
 .node-halo { fill: none; stroke: var(--em-accent-9); stroke-width: 2; display: none; }
 .node.center .node-halo { display: inline; }
-.node-label { fill: var(--em-foreground); font-size: var(--em-font-caption); paint-order: stroke; stroke: var(--em-background); stroke-width: 3.5px; stroke-linejoin: round; }
+.node-label { fill: var(--em-foreground); font-size: var(--em-font-caption); paint-order: stroke; stroke: var(--em-background); stroke-width: 6px; stroke-linejoin: round; }
 .node:focus-visible .node-dot { stroke: var(--em-accent-9); stroke-width: 3; }
 .node-aura, .node-ping { fill: none; stroke: var(--node); display: none; transform-box: fill-box; transform-origin: center; pointer-events: none; }
 /* working: a ring that breathes */

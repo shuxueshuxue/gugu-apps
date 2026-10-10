@@ -114,8 +114,10 @@ async function fire(sub, event, row, extra) {
     path.failed = null
   } catch (error) {
     // 投不到要说出来:页签上标红,❌ 吞掉。
+    // gugu's message is for the App's author (English); its code is what the tab says in the person's language
     entry.error = String(error?.message ?? error)
-    path.failed = { at: entry.at, error: entry.error }
+    entry.code = error?.code ?? null
+    path.failed = { at: entry.at, error: entry.error, code: entry.code }
   }
   state.log = [...state.log, entry].slice(-LOG_MAX)
 }
