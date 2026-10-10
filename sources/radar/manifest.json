@@ -3,7 +3,7 @@
   "name": "雷达",
   "description": "让 agent 关注别的 agent:它出问题、需要人、或者做完的时候,雷达发一条提醒过去。agent 自己用 watch / unwatch / watching 关注;页签上是一张图,看得到谁在关注谁、每条路提醒过几次、有没有送到。只看这台电脑上的 agent。",
   "author": "咕咕",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "apiVersion": 3,
   "engines": { "gugu": ">=0.2.53" },
   "entry": "radar.html",

@@ -146,16 +146,6 @@ function model() {
   return { nodes, edges }
 }
 
-/** What the floating cards leave of the stage for the graph: they sit at the right and bottom, or (narrow) at the bottom and top. */
-function freeArea() {
-  const stage = $('stage').getBoundingClientRect(), side = $('side').getBoundingClientRect(), legend = $('legend').getBoundingClientRect()
-  const gap = 8
-  if (window.matchMedia('(max-width: 640px)').matches) {
-    return { top: legend.bottom - stage.top + gap, right: 0, bottom: stage.bottom - side.top + gap, left: 0 }
-  }
-  return { top: 0, right: stage.right - side.left + gap, bottom: stage.bottom - legend.top + gap, left: 0 }
-}
-
 function showTip(lines, ev) {
   const tip = $('tip')
   if (!lines) { tip.hidden = true; return }
@@ -190,8 +180,8 @@ function logList(entries) {
   return h('ul', { class: 'list' }, entries.map((e) =>
     h('li', {},
       h('div', {},
-        h('strong', {}, W.remind(`${e.targetTitle} ${W.eventDone[e.event] ?? ''}`.trim(), titleOf(e.to))),
-        e.ok ? h('span', {}, W.arrived) : h('span', { class: 'failed' }, W.notArrived(whyNot(e.error)))),
+        h('strong', {}, W.logLine(e.targetTitle, W.eventDone[e.event] ?? '', titleOf(e.to))),
+        e.ok ? null : h('small', { class: 'failed' }, W.notArrived(whyNot(e.error)))),
       h('gugu-time', { datetime: e.at }))))
 }
 
@@ -246,7 +236,7 @@ function renderBar() {
   if (age > 2 * 60_000) problems.push(state?.checkedAt ? W.late(Math.floor(age / 60_000)) : W.notRunning)
   $('alert').hidden = problems.length === 0
   $('alert').textContent = problems.join(' ')
-  $('mode-local').disabled = !ctx?.session?.agentId
+  $('bar').hidden = !ctx?.session?.agentId
   $('mode-local').setAttribute('aria-selected', String(mode === 'local'))
   $('mode-all').setAttribute('aria-selected', String(mode === 'all'))
   $('depth-box').hidden = mode !== 'local'
@@ -254,7 +244,6 @@ function renderBar() {
 
 function renderWords() {
   document.documentElement.lang = W === WORDS.zh ? 'zh-CN' : 'en'
-  $('title').textContent = W.title
   $('graph').setAttribute('aria-label', W.title)
   $('mode-local').textContent = W.thisTask
   $('mode-all').textContent = W.all
@@ -308,7 +297,9 @@ g.onBackgroundMessage((message) => {
 })
 g.onAgentsChanged(() => void refresh())
 g.onContextChanged((next) => {
-  ctx = { ...ctx, ...next }
+  const moved = next?.session?.agentId !== ctx?.session?.agentId
+  ctx = next
+  if (moved) { mode = ctx?.session?.agentId ? 'local' : 'all'; selected = null; graph.fit() }
   W = wordsFor(ctx?.locale)
   renderWords()
   render()
@@ -320,9 +311,6 @@ g.onContextChanged((next) => {
   renderWords()
   mode = ctx?.session?.agentId ? 'local' : 'all'
   renderBar()
-  graph.setFree(freeArea()) // before the first picture, so it opens in the space the cards leave
   await refresh()
-  const resized = new ResizeObserver(() => graph.setFree(freeArea()))
-  for (const id of ['graph', 'side', 'legend']) resized.observe($(id))
   setInterval(renderBar, 30_000)
 })()

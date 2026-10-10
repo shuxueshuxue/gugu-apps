@@ -2,8 +2,7 @@
 <html lang="zh-CN">
 <head><meta charset="utf-8"><title>雷达</title><link rel="stylesheet" href="radar.css"></head>
 <body>
-  <header id="bar">
-    <strong id="title">雷达</strong>
+  <header id="bar" hidden>
     <div role="tablist" id="modes">
       <button role="tab" id="mode-local" aria-selected="true">这个任务</button>
       <button role="tab" id="mode-all" aria-selected="false">全部</button>
@@ -14,23 +13,23 @@
   <main id="stage">
     <svg id="graph" aria-label="雷达"></svg>
     <p id="empty" role="status" hidden></p>
-    <div id="tip" class="glass" hidden></div>
-    <ul id="legend" class="glass">
+    <div id="tip" hidden></div>
+    <ul id="legend">
       <li><span class="dot status-working"></span><span id="l-working"></span></li>
       <li><span class="dot status-needs_user"></span><span id="l-waiting"></span></li>
       <li><span class="dot status-idle"></span><span id="l-idle"></span></li>
       <li><span class="dot status-error"></span><span id="l-trouble"></span></li>
       <li><span class="line"></span><span id="l-path"></span></li>
     </ul>
-    <aside id="side" class="glass">
-      <div id="side-head">
-        <small id="checked" class="muted"></small>
-        <button id="refresh" aria-label="↻"><gugu-icon name="refresh"></gugu-icon></button>
-      </div>
-      <section id="detail" class="stack" hidden></section>
-      <section class="stack"><h5 id="recent">最近的提醒</h5><div id="log"></div></section>
-    </aside>
   </main>
+  <aside id="side">
+    <div id="side-head">
+      <small id="checked" class="muted"></small>
+      <button id="refresh" aria-label="↻"><gugu-icon name="refresh"></gugu-icon></button>
+    </div>
+    <section id="detail" class="stack" hidden></section>
+    <section class="stack"><h5 id="recent">最近的提醒</h5><div id="log"></div></section>
+  </aside>
   <script src="graph.js"></script>
   <script type="module" src="radar.js"></script>
 </body>

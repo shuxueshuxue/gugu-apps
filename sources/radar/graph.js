@@ -1,7 +1,7 @@
 /**
  * 雷达 —— the subscription graph: a small spring layout drawn in SVG, no library (the App may load nothing remote).
  *
- * RadarGraph.create(svg, { onNodeClick, onEdgeClick, onHover, onEdgeHover }) → { update(model), fit(), setFree(insets), stats() }
+ * RadarGraph.create(svg, { onNodeClick, onEdgeClick, onHover, onEdgeHover }) → { update(model), fit(), stats() }
  * model = { nodes: [{ id, label, status, center }], edges: [{ id, source, target, label, failed }],
  *           deliveries: [{ edgeId, ok }] }
  * An edge is a path reminders travel on: from the agent they are about to the one they go to; `label` is how many
@@ -10,6 +10,8 @@
  * Motion is drawn by one requestAnimationFrame loop that runs only while something moves — the layout settling, a
  * drag, the camera, a dot — and then stops. Each frame changes attributes (transform, d) on elements that already
  * exist; the DOM is diffed by id, never rebuilt per frame. Behind the graph, a few still, faint rings mark the center.
+ * A bigger box spreads the graph out (longer springs), so a page of its own is not one small cluster; the dots and the
+ * words keep their size.
  * With 「减少动态效果」 on, the layout settles in one go and nothing moves by itself.
  * Colours come only from gugu's theme tokens (--em-*), in radar.css.
  */
@@ -55,7 +57,7 @@
     let raf = 0
     let lastT = 0
     let focus = null
-    let insets = { top: 0, right: 0, bottom: 0, left: 0 }
+    let spread = 1 // how far the graph opens out: 1 in a small box, up to 1.8 in a big one (spreadFor)
     const work = [] // ms of this loop's work per frame, the last 600 frames
     let framesEver = 0 // every frame this loop has drawn: unchanged over a stretch of time = it was not running
     const gaps = [] // ms between frames while it runs
@@ -102,7 +104,7 @@
           let d2 = dx * dx + dy * dy
           if (d2 < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d2 = 1 }
           // the push grows as two get close, but not without bound: everyone starts near the center
-          const k = (3200 / Math.max(d2, 900)) * alpha * f
+          const k = ((3200 * spread ** 3) / Math.max(d2, 900 * spread ** 2)) * alpha * f
           const d = Math.sqrt(d2)
           a.vx -= (dx / d) * k; a.vy -= (dy / d) * k; b.vx += (dx / d) * k; b.vy += (dy / d) * k
         }
@@ -112,7 +114,7 @@
         if (!a || !b) continue
         const dx = b.x - a.x, dy = b.y - a.y
         const d = Math.sqrt(dx * dx + dy * dy) || 1
-        const k = (d - 120) * 0.035 * alpha * f
+        const k = (d - 120 * spread) * 0.035 * alpha * f
         a.vx += (dx / d) * k; a.vy += (dy / d) * k; b.vx -= (dx / d) * k; b.vy -= (dy / d) * k
       }
       const damp = 0.84 ** f
@@ -170,16 +172,14 @@
     function fitTarget() {
       const ps = nodes.map((n) => pos.get(n.id)).filter(Boolean)
       if (!ps.length) return null
-      // the part of the stage the floating cards leave free
-      const { w: W, h: H } = size()
-      const w = Math.max(80, W - insets.left - insets.right), h = Math.max(80, H - insets.top - insets.bottom)
+      const { w, h } = size()
       const xs = ps.map((p) => p.x), ys = ps.map((p) => p.y)
       const bw = Math.max(...xs) - Math.min(...xs) + 160, bh = Math.max(...ys) - Math.min(...ys) + 140
       const k = Math.min(1.25, Math.max(0.3, Math.min(w / bw, h / bh)))
       return {
         k,
-        x: insets.left + w / 2 - ((Math.max(...xs) + Math.min(...xs)) / 2) * k,
-        y: insets.top + h / 2 - ((Math.max(...ys) + Math.min(...ys)) / 2) * k,
+        x: w / 2 - ((Math.max(...xs) + Math.min(...xs)) / 2) * k,
+        y: h / 2 - ((Math.max(...ys) + Math.min(...ys)) / 2) * k,
       }
     }
     /** One step toward the fitted view; false once there (and nothing moves any more). */
@@ -305,7 +305,7 @@
       if (!old.size && !nodeEls.size) {
         // the first picture: look at the origin, where everyone starts
         const { w, h } = size()
-        zoom = { k: 1.25, x: insets.left + (w - insets.left - insets.right) / 2, y: insets.top + (h - insets.top - insets.bottom) / 2 }
+        zoom = { k: 1.25, x: w / 2, y: h / 2 }
         applyView()
       }
       nodes = model.nodes
@@ -500,11 +500,17 @@
       camera()
     })
 
-    /** What the floating cards leave of the stage ({ top, right, bottom, left }, px); the camera keeps to it. */
-    function setFree(free) {
-      insets = free
-      if (autoFit) { if (still()) camera(); else wake() }
-    }
+    /** The box changed: the graph opens out to it (when that changes the spread much) and the camera fits it again. */
+    const spreadFor = ({ w, h }) => Math.min(1.8, Math.max(1, Math.min(w, h) / 560))
+    new ResizeObserver(() => {
+      const next = spreadFor(size())
+      if (Math.abs(next - spread) > 0.05) {
+        spread = next
+        alpha = Math.max(alpha, 0.3)
+        if (still()) settleNow()
+      }
+      if (autoFit || alpha > ALPHA_MIN) { if (still()) camera(); else wake() }
+    }).observe(svg)
 
     /** Back to a view that holds everyone (and the camera follows the layout again). */
     function fit() {
@@ -524,7 +530,7 @@
     }
 
     applyView()
-    return { update, fit, setFree, stats, running: () => raf !== 0 }
+    return { update, fit, stats, running: () => raf !== 0 }
   }
 
   window.RadarGraph = { create }

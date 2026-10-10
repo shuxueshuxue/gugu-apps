@@ -1,35 +1,40 @@
 /* 雷达's tab. Only gugu's tokens (--em-*), so light and dark follow by themselves. */
-body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: var(--em-background); }
-[hidden] { display: none; }
+body {
+  margin: 0; height: 100vh; overflow: hidden; background: var(--em-background);
+  display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 28%, 380px); grid-template-rows: auto auto minmax(0, 1fr);
+}
+/* hidden stays hidden, whatever display a rule below gives the element */
+[hidden] { display: none !important; }
 
-#bar { display: flex; align-items: center; gap: var(--em-spacing-md); padding: var(--em-spacing-sm) var(--em-spacing-lg); border-bottom: 1px solid var(--em-border); flex-wrap: wrap; }
-#depth-box { display: flex; align-items: center; gap: var(--em-spacing-xs); color: var(--em-foreground-muted); }
+/* the header is there only when there is a choice to make: in a task, this task or everyone (and how far out) */
+#bar { display: flex; align-items: center; gap: var(--em-spacing-lg); padding: var(--em-spacing-sm) var(--em-spacing-lg); border-bottom: 1px solid var(--em-border); }
+#modes { margin: 0; }
+#depth-box { flex-direction: row; align-items: center; gap: var(--em-spacing-sm); }
 #depth-box select { width: auto; }
-#alert { margin: 0; padding: var(--em-spacing-xs) var(--em-spacing-lg); }
+#alert { margin: 0; padding: var(--em-spacing-xs) var(--em-spacing-lg); border-radius: 0; }
+#bar, #alert { grid-column: 1 / -1; }
 
-/* the graph is the page; everything else floats on it */
-#stage { flex: 1; position: relative; min-height: 0; overflow: hidden; }
-#graph { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+/* the graph is the page; the reminders are a column beside it, or under it when the page is narrow */
+#stage { grid-area: 3 / 1; position: relative; display: flex; flex-direction: column; overflow: hidden; }
+#graph { flex: 1; min-height: 0; width: 100%; display: block; cursor: grab; touch-action: none; }
 #graph:active { cursor: grabbing; }
 #graph, #legend { user-select: none; -webkit-user-select: none; }
-
-.glass { position: absolute; isolation: isolate; border: 1px solid var(--em-border); border-radius: var(--em-radius-xl); backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); }
-.glass::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--em-background-1); opacity: 0.84; }
-
-#side { top: var(--em-spacing-lg); right: var(--em-spacing-lg); width: 300px; max-height: calc(100% - 2 * var(--em-spacing-lg)); overflow-y: auto; padding: var(--em-spacing-md) var(--em-spacing-lg); display: flex; flex-direction: column; gap: var(--em-spacing-lg); box-sizing: border-box; }
+#side { grid-area: 3 / 2; overflow-y: auto; padding: var(--em-spacing-md) var(--em-spacing-lg); border-left: 1px solid var(--em-border); display: flex; flex-direction: column; gap: var(--em-spacing-lg); }
 #side-head { display: flex; align-items: center; justify-content: space-between; gap: var(--em-spacing-sm); }
 #side h5 { margin: 0; }
 #side .list li { padding-left: 0; padding-right: 0; }
-#legend { left: var(--em-spacing-lg); bottom: var(--em-spacing-lg); margin: 0; padding: var(--em-spacing-xs) var(--em-spacing-md); list-style: none; display: flex; gap: var(--em-spacing-xs) var(--em-spacing-md); flex-wrap: wrap; max-width: calc(100% - 300px - 4 * var(--em-spacing-lg)); font-size: var(--em-font-caption); color: var(--em-foreground-muted); }
-#legend li { display: flex; align-items: center; gap: 6px; }
+/* a reminder's whole sentence, wrapped, never cut */
+#log .list li > div > * { white-space: normal; }
+#legend { margin: 0; padding: var(--em-spacing-sm) var(--em-spacing-lg); list-style: none; display: flex; flex-wrap: wrap; gap: var(--em-spacing-xs) var(--em-spacing-md); font-size: var(--em-font-caption); color: var(--em-foreground-muted); }
+#legend li { display: flex; align-items: center; gap: 6px; margin: 0; }
 #legend .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: var(--node); }
 #legend .line { width: 18px; height: 0; border-top: 1.5px solid var(--em-foreground-muted); display: inline-block; }
-#tip { z-index: 2; pointer-events: none; padding: var(--em-spacing-sm) var(--em-spacing-md); font-size: var(--em-font-caption); line-height: var(--em-lh-caption, 1.5); max-width: 280px; }
+#tip { position: absolute; z-index: 2; pointer-events: none; padding: var(--em-spacing-sm) var(--em-spacing-md); border: 1px solid var(--em-border); border-radius: var(--em-radius-xl); background: var(--em-background-1); font-size: var(--em-font-caption); line-height: var(--em-lh-caption, 1.5); max-width: 280px; }
 #tip p { margin: 0 0 2px; }
 #empty { position: absolute; left: 0; right: 0; top: 64%; text-align: center; color: var(--em-foreground-muted); margin: 0; pointer-events: none; }
-@media (max-width: 640px) {
-  #side { top: auto; left: var(--em-spacing-md); right: var(--em-spacing-md); bottom: var(--em-spacing-md); width: auto; max-height: 42%; }
-  #legend { left: var(--em-spacing-md); top: var(--em-spacing-md); bottom: auto; max-width: calc(100% - 2 * var(--em-spacing-md)); }
+@media (max-width: 720px) {
+  body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; }
+  #side { grid-area: 4 / 1; max-height: 40vh; border-left: 0; border-top: 1px solid var(--em-border); }
 }
 
 .failed { color: var(--em-foreground-destructive); }
