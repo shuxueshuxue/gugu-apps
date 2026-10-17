@@ -10,7 +10,9 @@
       "commit": "e583bb0898bb6301f78ac05d22bc61d5358bf312",
       "sha256": "b818ab1f5dbd89a133f513e0c8f6c423b910c4300a0b482436b6f38e44c94abf",
       "bytes": 3594,
-      "yanked": null
+      "yanked": {
+        "reason": "默认接法（自动找本机 Codex 的 Computer Use 客户端）在咕咕里一启动就超时：那个客户端只接受 Codex 自己调用。只有在设置里自填其他本机 MCP 程序时才能用。0.2.0 改用咕咕自带的电脑控制，随新版咕咕发布。"
+      }
     },
     {
       "version": "0.1.1",
@@ -19,7 +21,9 @@
       "commit": "773731a18aa0fc97eaceefcb30d1f35ad0e5aba7",
       "sha256": "bc981d88fc17bf40ba0241798b148aec4f4d87374d5c7a0d77d39362092eb914",
       "bytes": 4982,
-      "yanked": null
+      "yanked": {
+        "reason": "默认接法（自动找本机 Codex 的 Computer Use 客户端）在咕咕里一启动就超时：那个客户端只接受 Codex 自己调用。只有在设置里自填其他本机 MCP 程序时才能用。0.2.0 改用咕咕自带的电脑控制，随新版咕咕发布。"
+      }
     },
     {
       "version": "0.1.2",
@@ -28,7 +32,9 @@
       "commit": "9b2836072973e172b9cb99dc4eb44935e457845d",
       "sha256": "aa2244ec239423e00e27658add8f8076422af0733605613548c37e5c15d068fa",
       "bytes": 33907,
-      "yanked": null
+      "yanked": {
+        "reason": "默认接法（自动找本机 Codex 的 Computer Use 客户端）在咕咕里一启动就超时：那个客户端只接受 Codex 自己调用。只有在设置里自填其他本机 MCP 程序时才能用。0.2.0 改用咕咕自带的电脑控制，随新版咕咕发布。"
+      }
     }
   ]
 }
