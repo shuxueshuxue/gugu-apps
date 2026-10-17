@@ -28,14 +28,22 @@ test('API 5 tool Apps package and inspect without HTML; HTML entry checks still 
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('both first-party tool App sources are inspectable and contain no business HTML', async () => {
+test('both first-party tool App sources are inspectable; only Computer Use has a page, one per task', async () => {
   const root = new URL('../sources/', import.meta.url);
-  for (const id of ['browser-use', 'computer-use']) {
+  const tabs = {
+    'browser-use': undefined,
+    'computer-use': [
+      { name: 'settings', title: 'Settings', hostPage: 'settings' },
+      { name: 'preview', title: '电脑', entry: 'preview.html', icon: 'icon.png', perSession: true },
+    ],
+  };
+  for (const [id, expected] of Object.entries(tabs)) {
     const dir = new URL(`${id}/app/`, root).pathname;
     const { version } = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'));
     const read = inspectAppDir(dir, id, version, '');
     assert.equal(read.manifest.entry, undefined);
-    assert.equal(read.manifest.contributes.tabs, undefined);
+    assert.deepEqual(read.manifest.contributes.tabs, expected);
+    assert.deepEqual(read.manifest.contributes.mcpServers, [{ name: id, host: id }]);
     assert.deepEqual(read.manifest.permissions.capabilities, ['agents:tools']);
     assert.ok((await packDir(dir)).length > 0);
   }

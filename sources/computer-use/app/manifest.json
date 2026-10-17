@@ -1,21 +1,23 @@
 {
   "id": "computer-use",
   "name": "Computer Use",
-  "description": "Control native apps using a local computer-use MCP server.",
-  "version": "0.1.2",
+  "description": "Lets agents operate this computer's apps, and shows what they do. Each task's Computer tab shows the window its agent works in, its cursor and its steps.",
+  "version": "0.2.0",
   "icon": "icon.png",
   "apiVersion": 5,
-  "engines": { "gugu": ">=0.2.56" },
+  "engines": { "gugu": ">=0.2.57" },
   "author": "Gugu",
   "categories": ["productivity"],
   "repository": "https://github.com/shuxueshuxue/gugu-apps",
   "license": "MIT",
-  "localized": { "zh-CN": { "description": "通过本机的 Computer Use MCP 程序，让 Agent 查看和操作原生应用。" } },
+  "localized": { "zh-CN": { "description": "让 Agent 操作这台电脑上的应用，并看到它在做什么：每个任务的「电脑」页签显示它正在操作的窗口、它的光标和每一步。" } },
   "permissions": { "capabilities": ["agents:tools"] },
-  "contributes": { "mcpServers": [{ "name": "computer-use", "command": "node", "args": ["server.mjs"] }] },
-  "settings": [
-    { "key": "command", "title": "MCP 程序", "type": "string", "default": "", "description": "留空时自动查找本机已安装的 Codex Computer Use 客户端，也可填写其他本机 Computer Use MCP 程序的路径或命令。" },
-    { "key": "arguments", "title": "启动参数", "type": "string", "default": "[\"mcp\"]", "description": "JSON 字符串数组。Codex Computer Use 使用 [\"mcp\"]；其他程序按它的说明填写。" }
-  ],
+  "contributes": {
+    "tabs": [
+      { "name": "settings", "title": "Settings", "hostPage": "settings" },
+      { "name": "preview", "title": "电脑", "entry": "preview.html", "icon": "icon.png", "perSession": true }
+    ],
+    "mcpServers": [{ "name": "computer-use", "host": "computer-use" }]
+  },
   "examples": ["查看当前打开的原生应用", "帮我在这个应用里完成操作"]
 }

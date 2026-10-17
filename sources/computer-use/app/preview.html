@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Computer Use</title>
+<link rel="stylesheet" href="preview.css">
+<script type="module" src="preview.js"></script>
+</head>
+<body>
+<main id="stage" hidden>
+  <figure id="shot">
+    <div id="view"><img id="frame" alt=""><canvas id="cursor" aria-hidden="true"></canvas></div>
+    <figcaption id="caption" class="muted"><span id="what"></span><gugu-time id="when"></gugu-time></figcaption>
+  </figure>
+</main>
+<gugu-empty id="empty" icon="monitor" hidden><strong id="empty-title"></strong></gugu-empty>
+<p id="alert" role="alert" hidden></p>
+</body>
+</html>

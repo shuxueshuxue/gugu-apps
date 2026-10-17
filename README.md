@@ -40,7 +40,7 @@
 
 ## 本仓自己的 App(`sources/`)
 
-- 工具类 App 可以没有业务 HTML（App API 5）：`browser-use` 使用咕咕宿主的会话浏览器桥；`computer-use` 托管配置的本机 MCP 程序。点击 App 打开宿主的配置与状态页。`browser-use` 标 `firstRun`，新用户首启默认安装，可停用和卸载；`computer-use` 按需安装，调用本机程序需取得相应系统授权。老 profile 不追装，卸载后不自动装回。
+- 工具类 App 可以没有业务 HTML（App API 5）：`browser-use` 使用咕咕宿主的会话浏览器桥；`computer-use` 是咕咕电脑控制的开关（装着、启用着这台电脑才有电脑控制，agent 用咕咕自带的那套动作），它带一个每个任务一份的「电脑」页签（`perSession`），显示 agent 正在操作的窗口与每一步。点击 App 打开宿主的配置与状态页（`computer-use` 的系统授权也在那里办）。两者都标 `firstRun`（`computer-use` 随 0.2.0 上架时标），新用户首启默认安装，可停用和卸载。老 profile 不追装，卸载后不自动装回。
 
 - 一个目录就是整个 App 的(`radar`、`day-calendar`):`path` 写 `sources/<id>`。
 - 带打包脚本、带测试的(`office`、`omnisearch`):`sources/<id>/` 是这个 App 的工程，市场打的包只是其中的 `app/`

@@ -1,0 +1,14 @@
+body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+/* The frame and its line are one figure, as wide as the frame, centred in the pane; the frame takes the height left. */
+#stage { flex: 1; min-height: 0; display: grid; place-items: center; padding: var(--em-spacing-lg); }
+#stage[hidden] { display: none; }
+#shot { margin: 0; max-width: 100%; display: flex; flex-direction: column; gap: var(--em-spacing-sm); }
+#view { position: relative; }
+/* No outline or rounding of our own: the picture is the window, with its own shape (a ring drew a box around its rounded corners). */
+#frame { display: block; max-width: 100%; max-height: calc(100vh - 2 * var(--em-spacing-lg) - 2.5em); }
+#cursor { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#caption { width: 0; min-width: 100%; display: flex; align-items: baseline; gap: var(--em-spacing-sm); }
+#what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#when { flex: none; }
+gugu-empty { flex: 1; }
+#alert { margin: var(--em-spacing-lg); color: var(--em-foreground-destructive); }
