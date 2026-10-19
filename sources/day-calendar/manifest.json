@@ -3,9 +3,11 @@
   "name": "Calendar",
   "description": "The person's calendar: record writes a to-do or a memory on a day. It shows in the task page's side panel as a month with the chosen day's to-dos and memories.",
   "author": "咕咕",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "apiVersion": 3,
-  "engines": { "gugu": ">=0.2.53" },
+  "engines": {
+    "gugu": ">=0.2.58"
+  },
   "localized": {
     "zh-CN": {
       "name": "日历",
@@ -19,11 +21,24 @@
   "entry": "main.html",
   "icon": "icon.png",
   "permissions": {
-    "capabilities": ["agents:tools"]
+    "capabilities": [
+      "agents:tools"
+    ]
   },
   "contributes": {
-    "tabs": [{ "name": "main", "title": "日历", "entry": "main.html" }],
-    "mcpServers": [{ "tools": "tools.js" }]
+    "tabs": [
+      {
+        "name": "main",
+        "title": "日历",
+        "entry": "main.html"
+      }
+    ],
+    "mcpServers": [
+      {
+        "tools": "tools.js"
+      }
+    ],
+    "agentInstructions": "用户启用日历并授予 Agent 工具，即授权你自动记录本会话中明确的个人事项。在处理你实际收到的每轮用户消息时，主动维护此人的日历，无需等待“帮我记”“记下来”等请求。用户是在告知行程，也足以触发记录；不需要另有记录意图。对明确事项直接调用工具，不得先问“要不要记”“是在告诉我还是让我记录”，也不得等待再次确认。明确的个人计划用 day-calendar 的 record(kind=\"todo\")；已经发生的个人事项用 record(kind=\"memory\")。例如“下午我要去打网球”应自动记为今天的待办，detail 保留“下午”；“明天下午坐高铁回广州”应直接记为明天的待办，标题“坐高铁回广州”，detail 保留“下午”。这些例子说明触发规则，不要把例句本身写入日历。缺少具体时刻、车次、出发站等可选信息不阻止记录，不为此追问，也不要编造。通过 catalog_list / catalog_call 调用日历工具；原生列出的工具也可直接使用。先用 query 查询去重；用户说完成、补充、更改时间或日期时，用 query 找到已有条目，再用 update 更新其 ID；完成待办不要另建同名记事。query 不传日期可搜索全部历史。确定有多个候选且无法关联时询问，不得随意更新。只处理用户本人明确表达的真实事项，不记录假设、引文、他人安排、代码示例或本轮讨论中的示例句。依据消息时间和用户时区解释今天、明天、昨天，每次显式传入解析后的 date，不依赖工具运行电脑的默认当天；日期关键且无法确定时询问，不凭空补全时间。只从本会话实际收到的消息提取，不扫描其他聊天。用户要求不记或停用时立即遵从。先完成记录，再简短告知已记入，然后继续回应用户的其他话题；不要用澄清记录意图代替调用工具。只有日期确实无法解析或更新对象存在无法消除的歧义时才就该信息提问。工具成功后才告知已记入；失败如实说明。"
   },
   "license": "MIT"
 }

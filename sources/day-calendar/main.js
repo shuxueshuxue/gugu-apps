@@ -1,9 +1,8 @@
 // A month, one marker per day, and the chosen day's to-dos and memories.
-// Everything lives in the App's data folder (journal.json); agents add to it with the `record` tool.
+// Read one month's daily files through the same program agents use.
 (function () {
   const api = window.gugu
   const $ = (id) => document.getElementById(id)
-  const FILE = 'journal.json'
 
   function el(tag, props, ...kids) {
     const n = document.createElement(tag)
@@ -82,10 +81,17 @@
     $('err').textContent = msg || ''
   }
 
+  let loading = 0
   async function load() {
+    const request = ++loading
+    const month = `${view.y}-${pad(view.m + 1)}`
     let next
     try {
-      next = await api.readData(FILE)
+      const res = await api.callProgram('month', { month })
+      const text = (res.content || []).map((c) => c.text || '').join('')
+      if (res.isError) throw new Error(text || 'month failed')
+      next = text
+      if (request !== loading || month !== `${view.y}-${pad(view.m + 1)}`) return false
     } catch (e) {
       showErr(t().readFail((e && e.message) || String(e)), 'read')
       return false
@@ -101,7 +107,7 @@
       days = (v && v.days) || {}
     } catch (e) {
       rawOk = false
-      showErr(t().readFail(`${FILE}: ${e.message}`), 'read')
+      showErr(t().readFail(`calendar: ${e.message}`), 'read')
       return false
     }
     rawOk = true
@@ -109,7 +115,7 @@
     return true
   }
 
-  // Every change goes through the App's own program, the one writer of journal.json, so an agent's
+  // Every change goes through the App's own program, the one writer of daily files, so an agent's
   // record landing at the same moment is never overwritten by this page's copy.
   async function change(tool, args) {
     try {
@@ -244,6 +250,8 @@
   }
 
   function render() {
+    // Browsing another month must not show the previously selected day under it.
+    if (!selected.startsWith(`${view.y}-${pad(view.m + 1)}-`)) selected = `${view.y}-${pad(view.m + 1)}-01`
     renderMonth()
     renderDay()
   }
@@ -252,19 +260,19 @@
     selected = k
     const d = dateOf(k)
     view = { y: d.getFullYear(), m: d.getMonth() }
+    days = {}; raw = undefined
     render()
+    load().then((changed) => { if (changed) render() })
   }
 
   // ---- wiring ---------------------------------------------------------------
   $('prev').addEventListener('click', () => {
     const d = new Date(view.y, view.m - 1, 1)
-    view = { y: d.getFullYear(), m: d.getMonth() }
-    render()
+    select(keyOf(d))
   })
   $('next').addEventListener('click', () => {
     const d = new Date(view.y, view.m + 1, 1)
-    view = { y: d.getFullYear(), m: d.getMonth() }
-    render()
+    select(keyOf(d))
   })
   $('month').addEventListener('click', () => select(keyOf(new Date())))
   $('add').addEventListener('submit', (ev) => {
